@@ -5,23 +5,23 @@ Various implementations of bar-induction.  Basically a stress-test of
 higher-order functional programming in each language.
 
 The bar-induction implementation in each example is the function `raw`, along
-with the helpers it needs this is about half the code.  The second half is an
+with the helpers it needs, this is about half the code.  The second half is an
 optimizer and pretty printer for the extracted tree.  Take the word 'pretty'
 with a grain of salt.
 
-The algorithm is typable in Gödel's T.  So in theory you can write the code in
-just about any language.  E.g., η-expanding everything, it maps onto good 'ole
-Pascal just fine.  But to have run-times within the age of the universe, you
-need more sharing: use some laziness and pull things outside of λ-abstractions
+The algorithm is typable in PCF.  So in theory you can write the code in just
+about any language.  E.g., η-expanding everything, it maps onto good 'ole Pascal
+just fine.  But to have run-times within the age of the universe, you need more
+sharing: use some laziness and pull things outside of λ-abstractions
 appropriately.
 
 * **S.hs** The gold-standard Haskell version.  Uses Applicative.  Monad is also
-  defined but not used.  Assumes that Word is 64-bits.  Compiling with `ghc
+  defined but not used.  Assumes that `Word` is 64-bits.  Compiling with `ghc
   -main-is S -O2 S` on my desktop, the run-time is about 0.55 seconds.
 
-* **R.hs** Slightly shorter but less informative Haskell version, without using
-  monadic programming.  Uses big-ints (`Numeric.Natural`), so it's slightly
-  slower.
+* **R.hs** Slightly shorter, but less informative, Haskell version, without
+  using monadic programming.  Uses big-ints (`Numeric.Natural`), so it's
+  slightly slower.
 
 * **Opt.py** Python.  Everything is hand-inlined and unboxed as far as
   practicable in the name of performance.  Also the `lambda x=x:` trick used is
@@ -41,9 +41,10 @@ appropriately.
   intersections, and universal lifetime quantifiers inside datatypes appear
   to not instantiate properly.
 
-* **search.rs** Rust again, transliteration of R.hs.
+* **search.rs** Rust again, transliteration of R.hs.  Reaches 7 levels of nested
+  parentheses.  Compared with 2 for the Haskell version.
 
 * **C++** I did one once.  It was not pretty.  Too embarrassing to make public.
-  Attempting to unbox anything falls afoul of the fact that what-passes-for-a-λ
-  in C++ has copy semantics not reference semantics, killing the sharing
-  required for sane run-times.
+  Friends don't let friends do C++.  Attempting to unbox anything falls afoul of
+  the fact that what-passes-for-a-λ in C++ has copy semantics not reference
+  semantics, killing the sharing required for sane run-times.
