@@ -31,6 +31,11 @@ appropriately.
   Everything is boxed using `Rc`.  Only a factor of two slower than the
   Haskell versions.
 
+  Needs the nightly compilers for `Lazy`.  `Lazy` sucks for use in a function
+  signature or data-structure.  That makes it useless for most purposes, as far
+  as I can see.  But we're doing functional programming, so we just wrap the
+  object in a λ-abstraction.
+
   Attempting to un-box anything much failed, on my inability to do lifetime
   gymnastics inside data-structures.  You can't do explicit lifetime
   intersections, and universal lifetime quantifiers inside datatypes appear
