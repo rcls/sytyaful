@@ -51,45 +51,45 @@ def lift(f, xx, yy, q):
     y = SearchYforFXY(f, x,  yy, q)
     return Merge(f, x, y)
 
-def after(tt, m, q):
+def after(m, q):
     n = 2 * m + 1
     return lift(n,
-                lambda q, tt=tt, m=m, n=n: between(tt, m, n, q),
-                lambda q, tt=tt,      n=n: after  (tt,    n, q),
+                lambda q, m=m, n=n: between(m, n, q),
+                lambda q,      n=n: after  (   n, q),
                 q)
 
-def between(tt, m, p, q):
+def between(m, p, q):
     if m + 1 == p:
-        return Const(q(tt))
+        return Const(q(Const(True)))
     n = (m + p) // 2
     return lift(n,
-                lambda q, tt=tt, m=m, n=n: between(tt, m, n, q),
-                lambda q, tt=tt, n=n, p=p: between(tt, n, p, q),
+                lambda q, m=m, n=n: between(m, n, q),
+                lambda q, n=n, p=p: between(n, p, q),
                 q)
 
 def limit(f):
     m = 0
     n = 1
-    while not f(n):
+    while f(n):
         m = n
         n = 2 * m + 1
     while n - m > 1:
         p = (m + n) // 2
         if f(p):
-            n = p
-        else:
             m = p
+        else:
+            n = p
     return m
 
 def raw(p):
     def arbitrary(n):
         return (n & 1) != 0
-    something = p(arbitrary)
-    different = after(Const(not something), 0, p)
-    if p(different) == something:
-        return not not something
+    p_arbitrary = p(arbitrary)
+    different = after(0, lambda f, p=p: p(f) != p_arbitrary)
+    if p(different) == p_arbitrary:
+        return not not p_arbitrary
     def partial(n):
-        return p(Merge(n, different, arbitrary)) != something
+        return p(Merge(n, arbitrary, different)) != p_arbitrary
     pivot = limit(partial)
     rawT = raw(lambda f: p(lambda x: x == pivot or  f(x)))
     rawF = raw(lambda f: p(lambda x: x != pivot and f(x)))
@@ -161,9 +161,11 @@ def martin(p):
         n += 2
     if p(333333333333333):
         n += 4
+    if p(444444444444444):
+        n += 8
     return p(n) != p(n+1)
 
 
 if __name__ == "__main__":
     r = raw(martin)
-    print(cook(optimize(r)))
+    print(cook(optimize(optimize(r))))
