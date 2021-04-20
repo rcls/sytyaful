@@ -80,10 +80,8 @@ optimize g = g
 
 graph = cook . optimize . optimize . raw
 
-narrow p x y = if p(111111111111111 * x) then y else 0
+martin p = p(n) /= p(n+1) where
+  n = narrow 1 1 + narrow 2 2 + narrow 3 4 + narrow 4 8
+  narrow x y = if p(111111111111111 * x) then y else 0
 
-ff p = p(n) /= p(n+1) where n = narrow p 1 1 + narrow p 2 2 + narrow p 4 4
-
-gg p = p(n) /= p(n+1) where n = narrow p 1 1 + narrow p 2 2 + narrow p 3 4 + narrow p 4 8
-
-main = print(graph(gg))
+main = print(graph(martin))

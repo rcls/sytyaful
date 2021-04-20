@@ -20,16 +20,15 @@ appropriately.
   -main-is S -O2 S` on my desktop, the run-time is about 0.55 seconds.
 
 * **R.hs** Slightly shorter, but less informative, Haskell version, without
-  using monadic programming.  Uses big-ints (`Numeric.Natural`), so it's
-  slightly slower.
+  using monadic programming.  Runtime is about 0.42s on my desktop.
 
-* **Opt.py** Python.  Everything is hand-inlined and unboxed as far as
-  practicable in the name of performance.  Also the `lambda x=x:` trick used is
-  for creating closures.  Run-time is about 20 seconds on my desktop.
+* **Opt.py** Python.  Everything is unboxed as far as practicable in the name of
+  performance.  Also the `lambda x=x:` trick used is for creating closures.
+  Run-time is about 20 seconds on my desktop.
 
 * **tree.rs** Rust.  Transliteration of S.hs, but things specialised by type.
-  Everything is boxed using `Rc`.  Only a factor of two slower than the
-  Haskell versions.
+  Everything is boxed using `Rc`.  Only a factor of four slower than the Haskell
+  versions.
 
   Needs the nightly compilers for `Lazy`.  `Lazy` sucks for use in a function
   signature or data-structure.  That makes it useless for most purposes, as far
@@ -41,8 +40,9 @@ appropriately.
   intersections, and universal lifetime quantifiers inside datatypes appear
   to not instantiate properly.
 
-* **search.rs** Rust again, transliteration of R.hs.  Reaches 7 levels of nested
-  parentheses.  Compared with 2 for the Haskell version.
+* **search.rs** Rust again, transliteration of R.hs and Opt.py.  Reaches 7
+  levels of nested parentheses.  Compared with 2 for the Haskell version.  A bit
+  faster than tree.rs, but not much.
 
 * **C++** I did one once.  It was not pretty.  Too embarrassing to make public.
   Friends don't let friends do C++.  Attempting to unbox anything falls afoul of
