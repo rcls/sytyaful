@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 module R where
 
 import Data.Map hiding (map)
@@ -7,7 +8,7 @@ merge n x y u = if u < n then x u else y u
 cc q xx f = f (xx $ q . f)
 
 -- For some reason, keeping liftx as a separate function makes approx 10%
--- difference to performance.
+-- improvement to performance.
 liftx f yy q = cc q yy . merge f
 
 lift f xx yy q = cc q xx $ liftx f yy q
@@ -22,7 +23,7 @@ limit f = aft 0 where
   bet m n|m+1==n = m
   bet m n = if f p then bet p n else bet m p where p = div (m+n) 2
 
-data Raw = K Bool | C Word Raw Raw deriving (Eq, Show)
+data Raw a = K a | C Word (Raw a) (Raw a) deriving (Eq, Functor, Show)
 
 raw p = if pArbitrary == p different then K pArbitrary
         else C pivot (slice True) (slice False) where
@@ -32,14 +33,15 @@ raw p = if pArbitrary == p different then K pArbitrary
   pivot       = limit $ \n -> p (merge n arbitrary different) /= pArbitrary
   slice v     = raw   $ \f -> p $ \n -> if n == pivot then v else f n
 
-data Graph = Graph :|: Graph | Graph :&: Graph | IF Word Graph Graph
-  | T | F | AT Word | NAT Word deriving Show
+data Graph = Graph :|: Graph | Graph :&: Graph | Graph :^: Graph
+  | IF Word Graph Graph | T | F | AT Word | NAT Word deriving Show
 
 cook(K b) = if b then T else F
 cook(C n (K x) (K y)) =
   if x then if y then T else AT n else if y then NAT n else F
 cook(C n (K x) r) = if x then  AT n :|: cook r else NAT n :&: cook r
 cook(C n r (K x)) = if x then NAT n :|: cook r else  AT n :&: cook r
+cook(C n r s) | (r == fmap not s) = AT n :^: cook s
 cook(C n r s) = IF n (cook r) (cook s)
 
 -- golden = (sqrt(5) - 1) * 0.5 + 1e-10
