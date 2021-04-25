@@ -13,15 +13,15 @@ liftx f yy q = cc q yy . merge f
 
 lift f xx yy q = cc q xx $ liftx f yy q
 
-between m p q | m+1==p = const $ q $ const True
-between m p q = lift n (between m n) (between n p) q where n = div (m + p) 2
+range m p q | m+1==p = const $ q $ const True
+range m p q = lift n (range m n) (range n p) q where n = div (m + p) 2
 
-after m q = lift n (between m n) (after n) q where n = 2 * m + 1
+after m q = lift n (range m n) (after n) q where n = 2 * m + 1
 
 limit f = aft 0 where
   aft m = if f n then aft n else bet m n where n = 2 * m + 1
-  bet m n|m+1==n = m
-  bet m n = if f p then bet p n else bet m p where p = div (m+n) 2
+  bet m p|m+1==p = m
+  bet m p = if f n then bet n p else bet m n where n = div (m+p) 2
 
 data Raw a = K a | C Word (Raw a) (Raw a) deriving (Eq, Functor, Show)
 

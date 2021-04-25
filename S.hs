@@ -28,9 +28,9 @@ instance Monad S where
 
 tree :: (Word -> a -> a -> a) -> (Word -> a) -> a
 tree join leaf = after 0 where
-  after m = join p (between m p) (after p) where p = 2 * m + 1
-  between m n | m+1==n = leaf m
-  between m n = join p (between m p) (between p n) where p = m + div (n - m) 2
+  after m = join p (range m p) (after p) where p = 2 * m + 1
+  range m n | m+1==n = leaf m
+  range m n = join p (range m p) (range p n) where p = m + div (n - m) 2
 
 merge n f g x = if x < n then f x else g x
 

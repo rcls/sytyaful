@@ -84,7 +84,8 @@ fn raw(p: Goal) -> Raw {
     if p(different.clone()) == p_arbitrary {
         return if p_arbitrary { TT } else { FF }
     }
-    let pivot = limit(&|n| p(merge(n, arbitrary.clone(), different.clone())) != p_arbitrary);
+    let pivot = limit(
+        &|n| p(merge(n, arbitrary.clone(), different.clone())) != p_arbitrary);
     let q = p.clone();
     let rawt = raw(Rc::new(move |f| q(Rc::new(move |x| x == pivot || f(x)))));
     let rawf = raw(Rc::new(move |f| p(Rc::new(move |x| x != pivot && f(x)))));
@@ -92,7 +93,7 @@ fn raw(p: Goal) -> Raw {
 }
 
 // Just print it.
-fn cook(t: Raw) {
+fn cook(t: &Raw) {
     match t {
         TT => print!("T"),
         FF => print!("F"),
@@ -181,6 +182,6 @@ fn ff(p : Pred) -> bool {
 
 fn main() {
     let r = raw(Rc::new(ff));
-    cook(optimize(optimize(r)));
+    cook(&optimize(optimize(r)));
     println!();
 }

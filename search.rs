@@ -42,21 +42,21 @@ fn lift(f: u64, xx: Opt, yy: Opt, q: Goal) -> Pred {
     merge(f, x, y)
 }
 
-fn between(m: u64, p: u64, q: Goal) -> Pred {
+fn range(m: u64, p: u64, q: Goal) -> Pred {
     if m + 1 == p {
         return konst(q(konst(true)))
     }
     let n = (m + p) / 2;
     lift(n,
-         Rc::new(move |q| between(m, n, q)),
-         Rc::new(move |q| between(n, p, q)),
+         Rc::new(move |q| range(m, n, q)),
+         Rc::new(move |q| range(n, p, q)),
          q)
 }
 
 fn after(m: u64, q: Goal) -> Pred {
     let n = 2 * m + 1;
     lift(n,
-         Rc::new(move |q| between(m, n, q)),
+         Rc::new(move |q| range(m, n, q)),
          Rc::new(move |q| after(n, q)),
          q)
 }
@@ -95,7 +95,7 @@ fn raw(p: Goal) -> Raw {
 }
 
 // Just print it.
-fn cook(t: Raw) {
+fn cook(t: &Raw) {
     match t {
         TT => print!("T"),
         FF => print!("F"),
@@ -184,9 +184,6 @@ fn martin(p : Pred) -> bool {
 
 fn main() {
     let r = raw(Rc::new(martin));
-    // cook(r.clone());
-    // println!();
-    // println!();
-    cook(optimize(optimize(r)));
+    cook(&optimize(optimize(r)));
     println!();
 }
