@@ -11,11 +11,6 @@ def Const(x):
 def Merge(n,x,y):
     return lambda u, n=n, x=x, y=y: x(u) if u < n else y(u)
 
-# f : N
-# x : N->2
-# y : N->2
-# q : (N->2)->2
-# yy : ((N->2) -> 2) -> 2)
 class SearchYforFXY:
     __slots__ = 'f', 'x', 'yy', 'q', 'y'
     def __init__(self, f, x, yy, q):
@@ -51,13 +46,6 @@ def lift(f, xx, yy, q):
     y = SearchYforFXY(f, x,  yy, q)
     return Merge(f, x, y)
 
-def after(m, q):
-    n = 2 * m + 1
-    return lift(n,
-                lambda q, m=m, n=n: between(m, n, q),
-                lambda q,      n=n: after  (   n, q),
-                q)
-
 def between(m, p, q):
     if m + 1 == p:
         return Const(q(Const(True)))
@@ -65,6 +53,13 @@ def between(m, p, q):
     return lift(n,
                 lambda q, m=m, n=n: between(m, n, q),
                 lambda q, n=n, p=p: between(n, p, q),
+                q)
+
+def after(m, q):
+    n = 2 * m + 1
+    return lift(n,
+                lambda q, m=m, n=n: between(m, n, q),
+                lambda q,      n=n: after(   n, q),
                 q)
 
 def limit(f):
