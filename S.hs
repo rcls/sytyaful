@@ -27,10 +27,10 @@ instance Monad S where
   xx >> yy = yy
 
 tree :: (Word -> a -> a -> a) -> (Word -> a) -> a
-tree f l = after 0 where
-  after m = f p (between m p) (after p) where p = 2 * m + 1
-  between m n | m+1 == n = l m
-  between m n = f p (between m p) (between p n) where p = m + div (n - m) 2
+tree join leaf = after 0 where
+  after m = join p (between m p) (after p) where p = 2 * m + 1
+  between m n | m+1==n = leaf m
+  between m n = join p (between m p) (between p n) where p = m + div (n - m) 2
 
 merge n f g x = if x < n then f x else g x
 
