@@ -48,6 +48,15 @@ appropriately.
   levels of nested parentheses.  Compared with 2 for the Haskell version.  A bit
   faster than tree.rs, but not much.
 
+* **otree.ml** OCaml.  Transliteration of S.hs, again specialising everything.
+  Top marks for making the `lazy` monad explicit.  I've always found it deeply
+  ironic that Haskell goes to such great length to hide computational monads,
+  while promoting monads in general.  Hypocrites.
+
+* **osearch.ml** Ocaml again.  Unfortunately bottom marks for not having a
+  decent strictness analyzer to match `lazy`.  So to eek out performance to
+  match the Rust version, we expand some simple code into repetitive line-noise.
+
 * **C++** I did one once.  It was not pretty.  Too embarrassing to make public.
   Friends don't let friends do C++.  Attempting to unbox anything falls afoul of
   the fact that what-passes-for-a-λ in C++ has copy semantics not reference

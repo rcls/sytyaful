@@ -76,7 +76,7 @@ fn limit(f: &dyn Fn(u64) -> bool) -> u64 {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-enum Raw { TT, FF, CC(u64, Box<Raw>, Box<Raw>) }
+enum Raw { T, F, C(u64, Box<Raw>, Box<Raw>) }
 use Raw::*;
 
 fn raw(p: Goal) -> Raw {
@@ -85,44 +85,33 @@ fn raw(p: Goal) -> Raw {
     let q = p.clone();
     let different = after(0, Rc::new(move |f| q(f) != p_arbitrary));
     if p(different.clone()) == p_arbitrary {
-        return if p_arbitrary { TT } else { FF }
+        return if p_arbitrary { T } else { F }
     }
-    let pivot = limit(&|n| p(merge(n, arbitrary.clone(), different.clone())) != p_arbitrary);
+    let pivot = limit(
+        &|n| p(merge(n, arbitrary.clone(), different.clone())) != p_arbitrary);
     let q = p.clone();
     let rawt = raw(Rc::new(move |f| q(Rc::new(move |x| x == pivot || f(x)))));
     let rawf = raw(Rc::new(move |f| p(Rc::new(move |x| x != pivot && f(x)))));
-    CC(pivot, Box::new(rawt), Box::new(rawf))
+    C(pivot, Box::new(rawt), Box::new(rawf))
 }
 
 // Just print it.
 fn cook(t: &Raw) {
     match t {
-        TT => print!("T"),
-        FF => print!("F"),
-        CC(n, box tt, box ff) => match (tt, ff) {
-            (TT, FF) => print!("{}", n),
-            (FF, TT) => print!("!{}", n),
-            (TT, ff) => {
-                print!("{}| ", n);
-                cook(ff);
-            }
-            (FF, ff) => {
-                print!("!{}& ", n);
-                cook(ff);
-            }
-            (tt, TT) => {
-                print!("!{}| ", n);
-                cook(tt);
-            }
-            (tt, FF) => {
-                print!("{}& ", n);
-                cook(tt);
-            }
-            (tt, ff) => {
+        T => print!("T"),
+        F => print!("F"),
+        C(n, box x, box y) => match (x, y) {
+            (T, F) => print!( "{}", n),
+            (F, T) => print!("!{}", n),
+            (T, y) => { print!( "{}| ", n); cook(y) }
+            (F, y) => { print!("!{}& ", n); cook(y) }
+            (x, T) => { print!("!{}| ", n); cook(x) }
+            (x, F) => { print!( "{}& ", n); cook(x) }
+            (x, y) => {
                 print!("IF {} (", n);
-                cook(tt);
+                cook(x);
                 print!(",");
-                cook(ff);
+                cook(y);
                 print!(")");
             }
         }
@@ -133,25 +122,30 @@ const GOLDEN: f64 = 0.61803398875;
 
 fn weights(w: f64, acc: &mut HashMap<u64, f64>, r: &Raw) {
     match r {
-        CC(n, tt, ff) => {
+        C(n, x, y) => {
             *acc.entry(*n).or_insert(0.0) += w;
             let w = w * GOLDEN;
-            weights(w, acc, &*tt);
-            weights(w, acc, &*ff);
+            weights(w, acc, &*x);
+            weights(w, acc, &*y);
         }
         _ => { }
     }
 }
 
+fn cond(n: u64, x: Raw, y: Raw) -> Raw {
+    if x == y {
+        return x
+    }
+    C(n, Box::new(x), Box::new(y))
+}
+
 fn split(p: u64, v: bool, r: &Raw) -> Raw {
     match r {
-        CC(n, tt, ff) => {
+        C(n, x, y) => {
             if *n == p {
-                return if v { *tt.clone() } else { *ff.clone() };
+                return if v { *x.clone() } else { *y.clone() };
             };
-            let tt = split(p, v, &*tt);
-            let ff = split(p, v, &*ff);
-            if tt == ff { tt } else { CC(*n, Box::new(tt), Box::new(ff)) }
+            cond(*n, split(p, v, &*x), split(p, v, &*y))
         }
         _ => r.clone()
     }
@@ -163,27 +157,16 @@ fn optimize(r: Raw) -> Raw {
     if w.len() <= 1 { return r }
     let (p, _) = w.drain().max_by(
         |(_,u), (_,v)| u.partial_cmp(v).unwrap()).unwrap();
-    let stt = optimize(split(p, true, &r));
-    let sff = optimize(split(p, false, &r));
-    if stt == sff {
-        stt
-    }
-    else {
-        CC(p, Box::new(stt), Box::new(sff))
-    }
+    cond(p, optimize(split(p, true, &r)), optimize(split(p, false, &r)))
 }
 
 fn martin(p : Pred) -> bool {
-    let mut n = 0;
-    if p(111111111111111) { n += 1 }
-    if p(222222222222222) { n += 2 }
-    if p(333333333333333) { n += 4 }
-    if p(444444444444444) { n += 8 }
+    let narrow = |x: u64, y: u64| if p(x * 111111111111111) { y } else { 0 };
+    let n = narrow(1, 1) + narrow(2, 2) + narrow(3, 4) + narrow(4, 8);
     p(n) != p(n+1)
 }
 
 fn main() {
-    let r = raw(Rc::new(martin));
-    cook(&optimize(optimize(r)));
+    cook(&optimize(optimize(raw(Rc::new(martin)))));
     println!();
 }

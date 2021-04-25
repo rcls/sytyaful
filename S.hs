@@ -38,6 +38,7 @@ snat s q = tree (\n f g -> merge n <$> f <*> g) (\n -> const <$> s) ? q
 
 best = snat $ S $ \f -> f True
 
+-- Laziness allows us to use tree here...
 limit p = tree join id where join n a b = if p n then b else a
 
 data Raw = K Bool | C Word Raw Raw deriving (Eq, Show)
@@ -60,18 +61,15 @@ cook(C n (K x) r) = if x then  AT n :|: cook r else NAT n :&: cook r
 cook(C n r (K x)) = if x then NAT n :|: cook r else  AT n :&: cook r
 cook(C n r s) = IF n (cook r) (cook s)
 
--- golden = (sqrt(5) - 1) * 0.5 + 1e-10
 golden = 0.61803398875
 
-optimize g@(C _ _ _) = if sT == sF then sT else C pivot sT sF where
-  sT = slice True
-  sF = slice False
-  slice b = optimize $ with g where
-    with(C x l r) | x==pivot = if b then l else r
-    with(C x l r) = if ll == rr then ll else C x ll rr where
-      ll = with l
-      rr = with r
-    with a = a
+cond n x y = if x == y then x else C n x y
+
+optimize g@(C _ _ _) = cond pivot (branch True) (branch False) where
+  branch b = optimize $ slice g where
+    slice(C x l r) | x==pivot = if b then l else r
+    slice(C x l r) = cond x (slice l) (slice r)
+    slice a = a
   (_, pivot) = maximum $ map(\(a,b)->(b,a)) $ toList $ weights 1 g empty
   weights b (C x l r) = insertWith (+) x b . weights bb l . weights bb r where
     bb = b * golden

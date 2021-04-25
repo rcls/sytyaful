@@ -1,8 +1,9 @@
 
 let merge n x y u = if u < n then x u else y u
 
-let cc q xx f = let
-    s = lazy (xx (fun x -> q (f x))) in f (fun u -> Lazy.force s u)
+let wrap s u = Lazy.force s u
+
+let cc q xx f = f (wrap (lazy (xx (fun x -> q (f x)))))
 
 let lift f xx yy q = cc q xx (fun x -> cc q yy (merge f x))
 
@@ -15,35 +16,35 @@ let rec range m p q =
 let rec after m q = let n = 2 * m + 1 in lift n (range m n) (after n) q
 
 let limit f =
-  let rec bet m n =
+  let rec betwn m n =
     if m+1 = n then m else
-      let p = (m + n) / 2 in if f p then bet p n else bet m p in
-  let rec aft m =
-    let n = 2 * m + 1 in if f n then aft n else bet m n
-  in aft 0
+      let p = (m + n) / 2 in if f p then betwn p n else betwn m p in
+  let rec after m =
+    let n = 2 * m + 1 in if f n then after n else betwn m n
+  in after 0
 
-type raw = TT | FF | CC of int * raw * raw
+type raw = T | F | C of int * raw * raw
 
 let rec raw p =
   let arbitrary n = n mod 2 = 1 in
   let pArbitrary = p arbitrary in
   let different = after 0 (fun f -> p f <> pArbitrary) in
-  if p different = pArbitrary then if pArbitrary then TT else FF
+  if p different = pArbitrary then if pArbitrary then T else F
   else
     let pivot = limit(fun n -> p(merge n arbitrary different) != pArbitrary) in
     let slice b = raw(fun f -> p(fun x -> if x = pivot then b else f(x)))
-    in CC(pivot, slice true, slice false)
+    in C(pivot, slice true, slice false)
 
 let rec cook = function
-    TT -> print_string "T"
-  | FF -> print_string "F"
-  | CC(n,TT,FF) -> print_int n
-  | CC(n,FF,TT) -> Printf.printf "!%i" n
-  | CC(n,TT, y) -> Printf.printf "%i| " n  ; cook y
-  | CC(n,FF, y) -> Printf.printf "!%i& " n ; cook y
-  | CC(n, x,TT) -> Printf.printf "!%i| " n ; cook x
-  | CC(n, x,FF) -> Printf.printf "%i& " n ; cook x
-  | CC(n, x, y) ->
+    T -> print_char 'T'
+  | F -> print_char 'F'
+  | C(n, T, F) -> print_int n
+  | C(n, F, T) -> Printf.printf "!%i" n
+  | C(n, T, y) -> Printf.printf  "%i| " n ; cook y
+  | C(n, F, y) -> Printf.printf "!%i& " n ; cook y
+  | C(n, x, T) -> Printf.printf "!%i| " n ; cook x
+  | C(n, x, F) -> Printf.printf  "%i& " n ; cook x
+  | C(n, x, y) ->
      Printf.printf "IF %i (" n;
      cook x;
      print_char ',';
@@ -59,29 +60,27 @@ let optadd w = function
   | None -> Some w
 
 let rec weights w = function
-    CC(n, x, y) ->
+    C(n, x, y) ->
      let ww = w *. golden in
      fun m -> W.update n (optadd w) (weights ww x (weights ww y m))
   | _ -> fun m -> m
 
+let cond n x y = if x = y then x else C(n, x, y)
+
 let rec split p v = function
-    CC(n, x, y) ->
+    C(n, x, y) ->
     if n = p then if v then x else y
-      else
-        let x = split p v x and y = split p v y
-        in if x = y then x else CC(n, x, y)
+    else cond n (split p v x) (split p v y)
   | r -> r
 
 let maxval k v (kk, vv) = if v > vv then (k,v) else (kk,vv)
 
 let rec optimize = function
-    TT -> TT
-  | FF -> FF
+    T -> T
+  | F -> F
   | r ->
      let (p, _) = W.fold maxval (weights 1. r W.empty) (0, 0.) in
-     let stt = optimize(split p true r)
-     and sff = optimize(split p false r)
-     in if stt = sff then stt else CC(p, stt, sff)
+     cond p (optimize(split p true r)) (optimize(split p false r))
 
 let martin p = let
     narrow x y = if p(111111111111111 * x) then y else 0 in

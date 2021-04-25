@@ -93,74 +93,67 @@ def raw(p):
 def cook(t):
     if type(t) is bool:
         return t
-    pp, tt, ff = t
-    if tt is True:
-        if ff is False:
+    pp, x, y = t
+    if x is True:
+        if y is False:
             return f'@{pp}'
-        return f'@{pp}|', cook(ff)
-    if tt is False:
-        if ff is True:
+        return f'@{pp}|', cook(y)
+    if x is False:
+        if y is True:
             return f'!{pp}'
-        return f'!{pp}&', cook(ff)
-    if ff is True:
-        return f'!{pp}|', cook(tt)
-    if ff is False:
-        return f'@{pp}&', cook(tt)
-    return pp, cook(tt), cook(ff)
+        return f'!{pp}&', cook(y)
+    if y is True:
+        return f'!{pp}|', cook(x)
+    if y is False:
+        return f'@{pp}&', cook(x)
+    return pp, cook(x), cook(y)
 
 golden = 0.61803398875
 
 def weights(w, acc, r):
     if type(r) is bool:
         return
-    pp, tt, ff = r
+    pp, x, y = r
     acc[pp] = w + acc.get(pp, 0)
     w *= golden
-    weights(w, acc, tt)
-    weights(w, acc, ff)
+    weights(w, acc, x)
+    weights(w, acc, y)
+
+def cond(n, x, y):
+    if x == y:
+        return x
+    else:
+        return n, x, y
 
 def split(p, v, r):
     if type(r) is bool:
         return r
-    pp, tt, ff = r
-    if pp == p:
-        return tt if v else ff
-    tt = split(p, v, tt)
-    ff = split(p, v, ff)
-    if tt == ff:
-        return tt
-    else:
-        return pp, tt, ff
+    n, x, y = r
+    if n == p:
+        return x if v else y
+    return cond(n, split(p, v, x), split(p, v, y))
 
 def optimize(r):
     if type(r) is bool:
         return r
-    pp, tt, ff = r
-    if type(tt) is bool or type(ff) is bool:
+    n, x, y = r
+    if type(x) is bool or type(y) is bool:
         return r
     w = {}
     weights(1, w, r)
     p = max(w.items(), key=lambda x: x[1])[0]
-    stt = optimize(split(p, True, r))
-    sff = optimize(split(p, False, r))
-    if stt == sff:
-        return stt
+    return cond(p, optimize(split(p, True, r)), optimize(split(p, False, r)))
+
+def narrow(p, x, y):
+    if p(111111111111111 * x):
+        return y
     else:
-        return p, stt, sff
+        return 0
 
 def martin(p):
-    n = 0
-    if p(111111111111111):
-        n += 1
-    if p(222222222222222):
-        n += 2
-    if p(333333333333333):
-        n += 4
-    if p(444444444444444):
-        n += 8
+    n = narrow(p, 1, 1) + narrow(p, 2, 2) + narrow(p, 3, 4) + narrow(p, 4, 8)
     return p(n) != p(n+1)
 
 
 if __name__ == "__main__":
-    r = raw(martin)
-    print(cook(optimize(optimize(r))))
+    print(cook(optimize(optimize(raw(martin)))))
