@@ -1,6 +1,8 @@
 So You Think You're a Functional Language
 =========================================
 
+> Pronunciation: *Sɪt yə fuːl* (Sit Ya Fool)
+
 Various implementations of bar-induction.  Basically a stress-test of
 higher-order functional programming in each language.
 
@@ -10,7 +12,7 @@ optimizer and pretty printer for the extracted tree.  Take the word 'pretty'
 with a grain of salt.
 
 The algorithm is typable in PCF.  So in theory you can write the code in just
-about any language.  E.g., η-expanding everything, it maps onto good 'ole Pascal
+about any language.  E.g., η-expanding everything, it maps onto good ol' Pascal
 just fine.  But to have run-times within the age of the universe, you need more
 sharing: use some laziness and pull things outside of λ-abstractions
 appropriately.
@@ -20,7 +22,9 @@ appropriately.
   -main-is S -O2 S` on my desktop, the run-time is about 0.55 seconds.
 
 * **R.hs** Slightly shorter, but less informative, Haskell version, without
-  using monadic programming.  Runtime is about 0.42s on my desktop.
+  using monadic programming.  Runtime is about 0.42s on my desktop.  Just to
+  raise a finger at the longer implementations, we slip in a little `deriving
+  Functor` into the pretty printer, and use it.
 
 * **Opt.py** Python.  Everything is unboxed as far as practicable in the name of
   performance.  Also the `lambda x=x:` trick used is for creating closures.
