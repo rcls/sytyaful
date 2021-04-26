@@ -34,10 +34,10 @@ appropriately.
   Everything is boxed using `Rc`.  Only a factor of four slower than the Haskell
   versions.
 
-  Needs the nightly compilers for `Lazy`.  `Lazy` sucks for use in a function
-  signature or data-structure.  That makes it useless for most purposes, as far
-  as I can see.  But we're doing functional programming, so we just wrap the
-  object in a λ-abstraction.
+  Needs the nightly compilers for `Lazy`.  `Lazy` doesn't appear to work well
+  for use in a function signature or data-structure, making me wonder if it is
+  useful for anything.  But we're doing functional programming, so we just wrap
+  the object in a λ-abstraction.
 
   Attempting to un-box anything much failed, on my inability to do lifetime
   gymnastics inside data-structures.  You can't do explicit lifetime
@@ -48,12 +48,14 @@ appropriately.
   levels of nested parentheses.  Compared with 2 for the Haskell version.  A bit
   faster than tree.rs, but not much.
 
+  Made some progress with unboxing this one.
+
 * **otree.ml** OCaml.  Transliteration of S.hs, again specialising everything.
   Top marks for making the `lazy` monad explicit.  I've always found it deeply
   ironic that Haskell goes to such great length to hide computational monads,
-  while promoting monads in general.  Hypocrites.
+  while promoting monads in general..
 
-* **osearch.ml** Ocaml again.  Unfortunately bottom marks for not having a
+* **osearch.ml** Ocaml again.  Unfortunately not top marks for not having a
   decent strictness analyzer to match `lazy`.  So to eek out performance to
   match the Rust version, we expand some simple code into repetitive line-noise.
 

@@ -1,5 +1,6 @@
 #![feature(once_cell)]
 #![feature(box_patterns)]
+#![feature(trait_alias)]
 
 use std::lazy::Lazy;
 use std::boxed::Box;
@@ -8,7 +9,7 @@ use std::collections::HashMap;
 
 type Pred = Rc<dyn Fn(u64) -> bool>;
 type Goal = Rc<dyn Fn(Pred) -> bool>;
-type Opt  = Rc<dyn Fn(Goal) -> Pred>;
+trait Opt = Fn(Goal) -> Pred + Copy + 'static;
 
 fn merge(n: u64, x: Pred, y: Pred) -> Pred {
     Rc::new(move |u| { if u < n { x(u) } else { y(u) } })
@@ -18,26 +19,26 @@ fn konst(b : bool) -> Pred {
     Rc::new(move |_| b)
 }
 
-fn search_y_for_fxy(f: u64, x: Pred, yy: Opt, q: Goal) -> Pred {
+fn search_y_for_fxy<Y: Opt>(f: u64, x: Pred, yy: Y, q: Goal) -> Pred {
     let s = Lazy::new(
         move ||
             yy(Rc::new(move |y: Pred| q(merge(f.clone(), x.clone(), y)))));
     Rc::new(move |u| s(u))
 }
 
-fn search_x_for_fxy(f: u64, xx: Opt, yy: Opt, q: Goal) -> Pred {
+fn search_x_for_fxy<X: Opt, Y: Opt>(f: u64, xx: X, yy: Y, q: Goal) -> Pred {
     let s = Lazy::new(
         move ||
             xx(Rc::new(
                 move |x|
                 q(merge(f,
                         x.clone(),
-                        search_y_for_fxy(f, x, yy.clone(), q.clone()))))));
+                        search_y_for_fxy(f, x, yy, q.clone()))))));
     Rc::new(move |u| s(u))
 }
 
-fn lift(f: u64, xx: Opt, yy: Opt, q: Goal) -> Pred {
-    let x = search_x_for_fxy(f, xx, yy.clone(), q.clone());
+fn lift<X: Opt, Y: Opt>(f: u64, xx: X, yy: Y, q: Goal) -> Pred {
+    let x = search_x_for_fxy(f, xx, yy, q.clone());
     let y = search_y_for_fxy(f, x.clone(), yy, q);
     merge(f, x, y)
 }
@@ -48,16 +49,16 @@ fn range(m: u64, p: u64, q: Goal) -> Pred {
     }
     let n = (m + p) / 2;
     lift(n,
-         Rc::new(move |q| range(m, n, q)),
-         Rc::new(move |q| range(n, p, q)),
+         move |q| range(m, n, q),
+         move |q| range(n, p, q),
          q)
 }
 
 fn after(m: u64, q: Goal) -> Pred {
     let n = 2 * m + 1;
     lift(n,
-         Rc::new(move |q| range(m, n, q)),
-         Rc::new(move |q| after(n, q)),
+         move |q| range(m, n, q),
+         move |q| after(n, q),
          q)
 }
 
