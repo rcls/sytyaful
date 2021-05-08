@@ -45,19 +45,25 @@ appropriately.
   to not instantiate properly.
 
 * **search.rs** Rust again, transliteration of R.hs and Opt.py.  Reaches 7
-  levels of nested parentheses.  Compared with 2 for the Haskell version.  A bit
-  faster than tree.rs, but not much.
+  levels of nested parentheses.  Compared with 2 for the Haskell version.
 
-  Made some progress with unboxing this one.
+  Made some progress with unboxing this one.  Quite a bit faster than tree.rs,
+  runtime is 1.2 seconds on my desktop, nearly 3 times slower than R.hs.
 
 * **otree.ml** OCaml.  Transliteration of S.hs, again specialising everything.
   Top marks for making the `lazy` monad explicit.  I've always found it deeply
   ironic that Haskell goes to such great length to hide computational monads,
-  while promoting monads in general..
+  while promoting monads in general.
 
-* **osearch.ml** Ocaml again.  Unfortunately not top marks for not having a
-  decent strictness analyzer to match `lazy`.  So to eek out performance to
-  match the Rust version, we expand some simple code into repetitive line-noise.
+* **osearch.ml** Ocaml again.  The downside of the language being strict by
+  default, is that you don't get the same degree of strictness analysis and
+  unboxing with `lazy` as GHC gives you on Haskell code.  So to eek out
+  performance to match the Rust version, we expand some simple code into
+  repetitive line-noise.
+
+* **search.js** Javascript.  Takes about 3.7 seconds on my desktop, running with
+  node.js.  Which is pretty decent for a dynamically typed language with no
+  separate compilation phase.
 
 * **C++** I did one once.  It was not pretty.  Too embarrassing to make public.
   Friends don't let friends do C++.  Attempting to unbox anything falls afoul of

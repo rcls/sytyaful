@@ -9,13 +9,17 @@ OCAML=ocamlopt
 OCAMLFLAGS=-O2
 
 BIN=R S search tree osearch otree
+PROGS=$(BIN) search.js
 
 all: S search tree osearch otree
 
-run: $(BIN:%=run-%) FORCE
+run: $(PROGS:%=run-%) FORCE
 
 $(BIN:%=run-%): run-%: %
 	time ./$* >/dev/null
+
+run-%.js:
+	time node --stack-size=400000000 $*.js > /dev/null
 
 %: %.hs
 	$(GHC) $(GHCFLAGS) -main-is $* $<
