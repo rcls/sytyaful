@@ -61,9 +61,9 @@ appropriately.
   performance to match the Rust version, we expand some simple code into
   repetitive line-noise.
 
-* **search.js** Javascript.  Takes about 3.7 seconds on my desktop, running with
-  node.js.  Which is pretty decent for a dynamically typed language with no
-  separate compilation phase.
+* **search.js** Javascript (node.js).  Takes about 3.7 seconds on my desktop,
+  running with node.js.  Which is pretty decent for a dynamically typed language
+  with no separate compilation phase.
 
 * **C++** I did one once.  It was not pretty.  Too embarrassing to make public.
   Friends don't let friends do C++.  Attempting to unbox anything falls afoul of

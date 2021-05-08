@@ -1,5 +1,6 @@
 #![feature(once_cell)]
 #![feature(box_patterns)]
+#![feature(trait_alias)]
 
 use std::lazy::Lazy;
 use std::boxed::Box;
@@ -8,27 +9,22 @@ use std::collections::HashMap;
 
 type Pred = Rc<dyn Fn(u64) -> bool>;
 type Goal = Rc<dyn Fn(Pred) -> bool>;
-type Opt  = Rc<dyn Fn(Goal) -> Pred>;
+trait Opt = Fn(Goal) -> Pred + Copy + 'static;
 
-fn lazy_opt<F: Fn(Goal) -> Pred + Copy + 'static>(f : F) -> Opt {
-    Rc::new(move |q| {
-        let xx = Lazy::new(move || f(q));
-        Rc::new(move |x| xx(x))
-    })
-}
-
-fn cc(q: Goal, xx: Opt, f: Rc<dyn Fn(Pred) -> Pred>) -> Pred {
-    f.clone()(xx(Rc::new (move |x| q(f(x)))))
+fn cc<X: Opt>(q: Goal, xx: X, f: Rc<dyn Fn(Pred) -> Pred>) -> Pred {
+    let ff = f.clone();
+    let the_x = Lazy::new(move || xx(Rc::new (move |x| q(ff(x)))));
+    f(Rc::new(move |u| the_x(u)))
 }
 
 fn merge(n: u64, x: Pred, y: Pred) -> Pred {
     Rc::new(move |u| { if u < n { x(u) } else { y(u) } })
 }
 
-fn join(n: u64, xx: Opt, yy: Opt, q: Goal) -> Pred {
+fn join<X: Opt, Y: Opt>(n: u64, xx: X, yy: Y, q: Goal) -> Pred {
     cc(q.clone(), xx,
        Rc::new(move |x| {
-           cc(q.clone(), yy.clone(),
+           cc(q.clone(), yy,
               Rc::new(move |y| merge(n, x.clone(), y)))
        }))
 }
@@ -44,17 +40,12 @@ fn range(m: u64, p: u64, q: Goal) -> Pred {
     }
 
     let n = (m + p) / 2;
-    join(n,
-         lazy_opt(move |q| range(m, n, q)),
-         lazy_opt(move |q| range(n, p, q)),
-         q)
+    join(n, move |q| range(m, n, q), move |q| range(n, p, q), q)
 }
 
 fn after(m: u64, q: Goal) -> Pred {
-    join(2 * m + 1,
-         lazy_opt(move |q| range(m, 2 * m + 1, q)),
-         lazy_opt(move |q| after(2 * m + 1, q)),
-         q)
+    let n = 2 * m + 1;
+    join(n, move |q| range(m, n, q), move |q| after(n, q), q)
 }
 
 fn limit(f: &dyn Fn(u64) -> bool) -> u64 {
