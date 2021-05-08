@@ -33,16 +33,18 @@ raw p = if pArbitrary == p different then K pArbitrary
   pivot       = limit $ \n -> p (merge n arbitrary different) /= pArbitrary
   slice v     = raw   $ \f -> p $ \n -> if n == pivot then v else f n
 
-data Graph = Graph :|: Graph | Graph :&: Graph | Graph :^: Graph
-  | IF Word Graph Graph | T | F | AT Word | NAT Word deriving Show
+put = putStr . show
 
-cook(K b) = if b then T else F
-cook(C n (K x) (K y)) =
-  if x then if y then T else AT n else if y then NAT n else F
-cook(C n (K x) r) = if x then  AT n :|: cook r else NAT n :&: cook r
-cook(C n r (K x)) = if x then NAT n :|: cook r else  AT n :&: cook r
-cook(C n r s) | (r == fmap not s) = AT n :^: cook s
-cook(C n r s) = IF n (cook r) (cook s)
+cook(K b) = putStr $ if b then "true" else "false"
+cook(C n (K True ) (K False)) = putStr "p " >> put n
+cook(C n (K False) (K True )) = putStr "!p " >> put n
+cook(C n (K True ) y) = putStr  "p " >> put n >> putStr "|| " >> cook y
+cook(C n (K False) y) = putStr "!p " >> put n >> putStr "&& " >> cook y
+cook(C n x (K True )) = putStr "!p " >> put n >> putStr "|| " >> cook x
+cook(C n x (K False)) = putStr  "p " >> put n >> putStr "&& " >> cook x
+cook(C n x y) | (x == fmap not y) = putStr "p " >> put n >> putStr " ^ " >> cook y
+cook(C n x y) = putStr "if p " >> put n >> putStr " {"
+                >> cook x >> putStr "} else {" >> cook y >> putStr "}"
 
 -- golden = (sqrt(5) - 1) * 0.5 + 1e-10
 golden = 0.61803398875
@@ -60,10 +62,8 @@ optimize g@(C _ _ _) = cond pivot (branch True) (branch False) where
   weights _ _ = id
 optimize g = g
 
-graph = cook . optimize . optimize . raw
-
 martin p = p(n) /= p(n+1) where
   n = narrow 1 1 + narrow 2 2 + narrow 3 4 + narrow 4 8
   narrow x y = if p(111111111111111 * x) then y else 0
 
-main = print(graph(martin))
+main = cook $ optimize $ optimize $ raw martin
