@@ -69,8 +69,8 @@ let cond n x y = if x = y then x else C(n, x, y)
 
 let rec split p v = function
     C(n, x, y) ->
-    if n = p then if v then x else y
-    else cond n (split p v x) (split p v y)
+     if n = p then if v then x else y
+     else cond n (split p v x) (split p v y)
   | r -> r
 
 let maxval k v (kk, vv) = if v > vv then (k,v) else (kk,vv)
