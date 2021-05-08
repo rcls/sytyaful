@@ -7,37 +7,48 @@ use std::boxed::Box;
 use std::rc::Rc;
 use std::collections::HashMap;
 
-type Pred = Rc<dyn Fn(u64) -> bool>;
+// This could just be a function trait, except that we want to impl. it
+// ourselves.
+trait PredT {
+    fn at(&self, x: u64) -> bool;
+}
+
+type Pred = Rc<dyn PredT>;
 type Goal = Rc<dyn Fn(Pred) -> bool>;
 trait Opt = Fn(Goal) -> Pred + Copy + 'static;
 
-fn merge(n: u64, x: Pred, y: Pred) -> Pred {
-    Rc::new(move |u| { if u < n { x(u) } else { y(u) } })
+fn rc<T>(x: T) -> Rc<T> { Rc::new(x) }
+
+impl PredT for Pred {
+    fn at(&self, x: u64) -> bool { (**self).at(x) }
+}
+impl<T: Fn(u64) -> bool> PredT for T {
+    fn at(&self, x: u64) -> bool { self(x) }
+}
+impl<F: FnOnce() -> Pred> PredT for Lazy<Pred, F> {
+    fn at(&self, x: u64) -> bool { Lazy::force(self).at(x) }
+}
+
+fn merge(n: u64, x: impl PredT + 'static, y: impl PredT + 'static) -> Pred {
+    rc(move |u| if u < n { x.at(u) } else { y.at(u) })
 }
 
 fn konst(b : bool) -> Pred {
-    Rc::new(move |_| b)
+    rc(move |_| b)
 }
 
-fn search_y_for_fxy<Y: Opt>(f: u64, x: Pred, yy: Y, q: Goal) -> Pred {
-    let s = Lazy::new(
-        move ||
-            yy(Rc::new(move |y: Pred| q(merge(f.clone(), x.clone(), y)))));
-    Rc::new(move |u| s(u))
+fn search_y_for_fxy(f: u64, x: Pred, yy: impl Opt, q: Goal) -> impl PredT {
+    Lazy::new(
+        move || yy(rc(move |y| q(merge(f.clone(), x.clone(), y)))))
 }
 
-fn search_x_for_fxy<X: Opt, Y: Opt>(f: u64, xx: X, yy: Y, q: Goal) -> Pred {
-    let s = Lazy::new(
-        move ||
-            xx(Rc::new(
-                move |x|
-                q(merge(f,
-                        x.clone(),
-                        search_y_for_fxy(f, x, yy, q.clone()))))));
-    Rc::new(move |u| s(u))
+fn search_x_for_fxy(f: u64, xx: impl Opt, yy: impl Opt, q: Goal) -> Pred {
+    rc(Lazy::new(move || xx(rc(
+        move |x|
+        q(merge(f, x.clone(), search_y_for_fxy(f, x.clone(), yy, q.clone())))))))
 }
 
-fn lift<X: Opt, Y: Opt>(f: u64, xx: X, yy: Y, q: Goal) -> Pred {
+fn lift(f: u64, xx: impl Opt, yy: impl Opt, q: Goal) -> Pred {
     let x = search_x_for_fxy(f, xx, yy, q.clone());
     let y = search_y_for_fxy(f, x.clone(), yy, q);
     merge(f, x, y)
@@ -48,18 +59,12 @@ fn range(m: u64, p: u64, q: Goal) -> Pred {
         return konst(q(konst(true)))
     }
     let n = (m + p) / 2;
-    lift(n,
-         move |q| range(m, n, q),
-         move |q| range(n, p, q),
-         q)
+    lift(n, move |q| range(m, n, q), move |q| range(n, p, q), q)
 }
 
 fn after(m: u64, q: Goal) -> Pred {
     let n = 2 * m + 1;
-    lift(n,
-         move |q| range(m, n, q),
-         move |q| after(n, q),
-         q)
+    lift(n, move |q| range(m, n, q), move |q| after(n, q), q)
 }
 
 fn limit(f: &dyn Fn(u64) -> bool) -> u64 {
@@ -81,18 +86,18 @@ enum Raw { T, F, C(u64, Box<Raw>, Box<Raw>) }
 use Raw::*;
 
 fn raw(p: Goal) -> Raw {
-    let arbitrary = Rc::new(|n| n & 1 != 0);
+    let arbitrary: Pred = rc(|n| n & 1 != 0);
     let p_arbitrary = p(arbitrary.clone());
     let q = p.clone();
-    let different = after(0, Rc::new(move |f| q(f) != p_arbitrary));
+    let different = after(0, rc(move |f| q(f) != p_arbitrary));
     if p(different.clone()) == p_arbitrary {
         return if p_arbitrary { T } else { F }
     }
     let pivot = limit(
         &|n| p(merge(n, arbitrary.clone(), different.clone())) != p_arbitrary);
     let q = p.clone();
-    let rawt = raw(Rc::new(move |f| q(Rc::new(move |x| x == pivot || f(x)))));
-    let rawf = raw(Rc::new(move |f| p(Rc::new(move |x| x != pivot && f(x)))));
+    let rawt = raw(rc(move |f| q(rc(move |x| x == pivot || f.at(x)))));
+    let rawf = raw(rc(move |f| p(rc(move |x| x != pivot && f.at(x)))));
     C(pivot, Box::new(rawt), Box::new(rawf))
 }
 
@@ -162,12 +167,12 @@ fn optimize(r: Raw) -> Raw {
 }
 
 fn martin(p : Pred) -> bool {
-    let narrow = |x: u64, y: u64| if p(x * 111111111111111) { y } else { 0 };
+    let narrow = |x: u64, y: u64| if p.at(x * 111111111111111) { y } else { 0 };
     let n = narrow(1, 1) + narrow(2, 2) + narrow(3, 4) + narrow(4, 8);
-    p(n) != p(n+1)
+    p.at(n) != p.at(n+1)
 }
 
 fn main() {
-    cook(&optimize(optimize(raw(Rc::new(martin)))));
+    cook(&optimize(optimize(raw(rc(martin)))));
     println!();
 }

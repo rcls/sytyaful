@@ -1,28 +1,36 @@
 // Usage:
 // Get node.js and npm from somewhere, then run:
 //   npm install deep-equal
+//   ulimit -s unlimit
 //   time node --stack-size=400000000 search.js
 
 const equal = require('deep-equal')
 
-function lazyf(susp) {
-    let value;
+function merge(f, x, y) {
+    return u => u < f ? x(u) : y(u)
+}
+
+function search_y(f, x, yy, q) {
+    let value
     return function(u) {
         if (value === undefined)
-            value = susp()
+            value = yy(y => q(merge(f, x, y)))
         return value(u)
     }
 }
 
-function merge(n, x, y) {
-    return u => u < n ? x(u) : y(u)
+function search_x(f, xx, yy, q) {
+    let value
+    return function(u) {
+        if (value === undefined)
+            value = xx(x => q(merge(f, x, search_y(f, x, yy, q))))
+        return value(u)
+    }
 }
 
 function lift(f, xx, yy, q) {
-    function yx(x) {
-        return lazyf(() => yy(y => q(merge(f, x, y)))) }
-    let x = lazyf(() => xx(x => q(merge(f, x, yx(x)))))
-    let y = lazyf(() => yy(y => q(merge(f, x, y))))
+    let x = search_x(f, xx, yy, q)
+    let y = search_y(f, x, yy, q)
     return merge(f, x, y)
 }
 

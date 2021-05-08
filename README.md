@@ -31,24 +31,23 @@ appropriately.
   Run-time is about 20 seconds on my desktop.
 
 * **tree.rs** Rust.  Transliteration of S.hs, but things specialised by type.
-  Everything is boxed using `Rc`.  Only a factor of four slower than the Haskell
-  versions.
+  Everything is boxed using `Rc`.  Only a factor of two slower than the Haskell
+  version.
 
   Needs the nightly compilers for `Lazy`.  `Lazy` doesn't appear to work well
-  for use in a function signature or data-structure, making me wonder if it is
-  useful for anything.  But we're doing functional programming, so we just wrap
-  the object in a λ-abstraction.
+  for use in a function signature or data-structure, forcing us to jump through
+  hoops to use it.
 
-  Attempting to un-box anything much failed, on my inability to do lifetime
-  gymnastics inside data-structures.  You can't do explicit lifetime
-  intersections, and universal lifetime quantifiers inside datatypes appear
-  to not instantiate properly.
+  A useful amount of unboxing.  But more should be possible&mdash;you can't seem
+  to do much in the way of lifetime gymnastics inside data-structures.  You
+  can't do explicit lifetime intersections, and universal lifetime quantifiers
+  inside datatypes appear to not instantiate properly.
 
 * **search.rs** Rust again, transliteration of R.hs and Opt.py.  Reaches 7
   levels of nested parentheses.  Compared with 2 for the Haskell version.
 
   Made some progress with unboxing this one.  Quite a bit faster than tree.rs,
-  runtime is 1.2 seconds on my desktop, nearly 3 times slower than R.hs.
+  runtime is 0.9 seconds on my desktop, about half the speed of R.hs.
 
 * **otree.ml** OCaml.  Transliteration of S.hs, again specialising everything.
   Top marks for making the `lazy` monad explicit.  I've always found it deeply
@@ -61,7 +60,7 @@ appropriately.
   performance to match the Rust version, we expand some simple code into
   repetitive line-noise.
 
-* **search.js** Javascript (node.js).  Takes about 3.7 seconds on my desktop,
+* **search.js** Javascript (node.js).  Takes about 3.1 seconds on my desktop,
   running with node.js.  Which is pretty decent for a dynamically typed language
   with no separate compilation phase.
 

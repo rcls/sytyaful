@@ -19,7 +19,7 @@ $(BIN:%=run-%): run-%: %
 	time ./$* >/dev/null
 
 run-%.js:
-	time node --stack-size=400000000 $*.js > /dev/null
+	ulimit -s unlimited && time node --stack-size=400000000 $*.js > /dev/null
 
 %: %.hs
 	$(GHC) $(GHCFLAGS) -main-is $* $<

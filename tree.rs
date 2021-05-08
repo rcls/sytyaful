@@ -7,36 +7,35 @@ use std::boxed::Box;
 use std::rc::Rc;
 use std::collections::HashMap;
 
-type Pred = Rc<dyn Fn(u64) -> bool>;
+trait PredT = Fn(u64) -> bool + 'static;
+type Pred = Rc<dyn PredT>;
 type Goal = Rc<dyn Fn(Pred) -> bool>;
 trait Opt = Fn(Goal) -> Pred + Copy + 'static;
 
-fn cc<X: Opt>(q: Goal, xx: X, f: Rc<dyn Fn(Pred) -> Pred>) -> Pred {
+fn rc<T>(x: T) -> Rc<T> { Rc::new(x) }
+
+fn cc<F: PredT>(q: Goal, xx: impl Opt, f: impl Fn(Pred) -> F + Clone + 'static) -> F {
     let ff = f.clone();
-    let the_x = Lazy::new(move || xx(Rc::new (move |x| q(ff(x)))));
-    f(Rc::new(move |u| the_x(u)))
+    let the_x = Lazy::new(move || xx(rc(move |x:Pred| q(rc(ff(x))))));
+    f(rc(move |u| the_x(u)))
 }
 
-fn merge(n: u64, x: Pred, y: Pred) -> Pred {
-    Rc::new(move |u| { if u < n { x(u) } else { y(u) } })
+fn merge(n: u64, x: Pred, y: Pred) -> impl PredT {
+    move |u| if u < n { x(u) } else { y(u) }
 }
 
-fn join<X: Opt, Y: Opt>(n: u64, xx: X, yy: Y, q: Goal) -> Pred {
-    cc(q.clone(), xx,
-       Rc::new(move |x| {
-           cc(q.clone(), yy,
-              Rc::new(move |y| merge(n, x.clone(), y)))
-       }))
+fn konst(b : bool) -> Pred {
+    rc(move |_| b)
 }
 
-fn leaf(q: Goal) -> Pred {
-    let ll = Lazy::new(move || q(Rc::new(|_| true)));
-    Rc::new(move |_| *ll)
+fn join(n: u64, xx: impl Opt, yy: impl Opt, q: Goal) -> Pred {
+    rc(cc(q.clone(), xx, move |x|
+          cc(q.clone(), yy, move |y| merge(n, x.clone(), y))))
 }
 
 fn range(m: u64, p: u64, q: Goal) -> Pred {
     if m + 1 == p {
-        return leaf(q)
+        return konst(q(konst(true)))
     }
 
     let n = (m + p) / 2;
@@ -67,18 +66,18 @@ enum Raw { T, F, C(u64, Box<Raw>, Box<Raw>) }
 use Raw::*;
 
 fn raw(p: Goal) -> Raw {
-    let arbitrary = Rc::new(|n| n & 1 != 0);
+    let arbitrary = rc(|n| n & 1 != 0);
     let p_arbitrary = p(arbitrary.clone());
     let q = p.clone();
-    let different = after(0, Rc::new(move |f| q(f) != p_arbitrary));
+    let different = after(0, rc(move |f| q(f) != p_arbitrary));
     if p(different.clone()) == p_arbitrary {
         return if p_arbitrary { T } else { F }
     }
     let pivot = limit(
-        &|n| p(merge(n, arbitrary.clone(), different.clone())) != p_arbitrary);
+        &|n| p(rc(merge(n, arbitrary.clone(), different.clone()))) != p_arbitrary);
     let q = p.clone();
-    let rawt = raw(Rc::new(move |f| q(Rc::new(move |x| x == pivot || f(x)))));
-    let rawf = raw(Rc::new(move |f| p(Rc::new(move |x| x != pivot && f(x)))));
+    let rawt = raw(rc(move |f| q(rc(move |x| x == pivot || f(x)))));
+    let rawf = raw(rc(move |f| p(rc(move |x| x != pivot && f(x)))));
     C(pivot, Box::new(rawt), Box::new(rawf))
 }
 
@@ -132,7 +131,7 @@ fn split(p: u64, v: bool, r: &Raw) -> Raw {
             if *n == p {
                 return if v { *x.clone() } else { *y.clone() };
             };
-                cond(*n, split(p, v, &*x), split(p, v, &*y))
+            cond(*n, split(p, v, &*x), split(p, v, &*y))
         }
         _ => r.clone()
     }
