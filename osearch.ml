@@ -1,9 +1,9 @@
 
 let force = Lazy.force
 
-let merge n x y u = if u < n then x u else y u
-let merge1 f x y u = if u < f then force x u else y u
-let merge2 f x y u = if u < f then x u else force y u
+let merge  (n:int) x y u = if u < n then       x u else       y u
+let merge1 (f:int) x y u = if u < f then force x u else       y u
+let merge2 (f:int) x y u = if u < f then       x u else force y u
 
 let lift f xx yy q =
   let yx x = lazy (yy (fun y -> q (merge f x y))) in
