@@ -33,9 +33,7 @@ fn merge(n: u64, x: impl PredT + 'static, y: impl PredT + 'static) -> Pred {
     rc(move |u| if u < n { x.at(u) } else { y.at(u) })
 }
 
-fn konst(b : bool) -> Pred {
-    rc(move |_| b)
-}
+fn konst(b : bool) -> Pred { rc(move |_| b) }
 
 fn search_y_for_fxy(f: u64, x: Pred, yy: impl Opt, q: Goal) -> impl PredT {
     Lazy::new(
@@ -45,7 +43,8 @@ fn search_y_for_fxy(f: u64, x: Pred, yy: impl Opt, q: Goal) -> impl PredT {
 fn search_x_for_fxy(f: u64, xx: impl Opt, yy: impl Opt, q: Goal) -> Pred {
     rc(Lazy::new(move || xx(rc(
         move |x|
-        q(merge(f, x.clone(), search_y_for_fxy(f, x.clone(), yy, q.clone())))))))
+        q(merge(f, x.clone(),
+                search_y_for_fxy(f, x.clone(), yy, q.clone())))))))
 }
 
 fn lift(f: u64, xx: impl Opt, yy: impl Opt, q: Goal) -> Pred {
