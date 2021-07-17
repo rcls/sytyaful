@@ -60,6 +60,10 @@ appropriately.
   performance to match the Rust version, we expand some simple code into
   repetitive line-noise.
 
+* **msearch.sml**, **mtree.sml** A couple of Standard ML implementations.  50%
+  more lines than the Haskell version, and compiling with mlton, the run-time is
+  only a little slower.  So comes second on both metrics.
+
 * **search.js** Javascript (node.js).  Takes about 3.1 seconds on my desktop,
   running with node.js.  Which is pretty decent for a dynamically typed language
   with no separate compilation phase.

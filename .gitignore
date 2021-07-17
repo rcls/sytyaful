@@ -7,3 +7,6 @@ osearch
 otree
 search
 tree
+
+node_modules
+package-lock.json

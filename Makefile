@@ -8,10 +8,10 @@ GHCFLAGS=-O2
 OCAML=ocamlopt
 OCAMLFLAGS=-O2
 
-BIN=R S search tree osearch otree
+BIN=R S search tree osearch otree mtree msearch
 PROGS=$(BIN) search.js
 
-all: S search tree osearch otree
+all: $(BIN)
 
 run: $(PROGS:%=run-%) FORCE
 
@@ -29,6 +29,9 @@ run-%.js:
 
 %: %.ml
 	$(OCAML) $(OCAMLFLAGS) -o $@ $<
+
+%: %.sml
+	mlton $<
 
 FORCE:
 
