@@ -64,9 +64,15 @@ appropriately.
   more lines than the Haskell version, and compiling with mlton, the run-time is
   only a little slower.  So comes second on both metrics.
 
-* **search.js** Javascript (node.js).  Takes about 3.1 seconds on my desktop,
+* **search.js** Javascript (node.js).  Takes about 3.5 seconds on my desktop,
   running with node.js.  Which is pretty decent for a dynamically typed language
   with no separate compilation phase.
+
+* **search.lua** Lua.  A lovely little scripting language that can do real
+  functional programming.  It's got nice clean semantics with the glaring
+  exception that variables are global by default, unless you declare them
+  to be local.  Similar run-time to the Python version, without any of
+  the performance hacks I did for the latter.
 
 * **C++** I did one once.  It was not pretty.  Too embarrassing to make public.
   Friends don't let friends do C++.  Attempting to unbox anything falls afoul of

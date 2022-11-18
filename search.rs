@@ -2,7 +2,7 @@
 #![feature(box_patterns)]
 #![feature(trait_alias)]
 
-use std::lazy::Lazy;
+use std::cell::LazyCell as Lazy;
 use std::boxed::Box;
 use std::rc::Rc;
 use std::collections::HashMap;

@@ -8,18 +8,23 @@ GHCFLAGS=-O2
 OCAML=ocamlopt
 OCAMLFLAGS=-O2
 
-BIN=R S search tree osearch otree mtree msearch
-PROGS=$(BIN) search.js
+BIN=R S msearch mtree search tree osearch otree
+FAST=$(BIN) search.js
+PROG=$(BIN) Opt.py search.lua
 
 all: $(BIN)
 
-run: $(PROGS:%=run-%) FORCE
+run: $(FAST:%=run-%) FORCE
+slow: run run-Opt.py run-search.lua
 
-$(BIN:%=run-%): run-%: %
+$(PROG:%=run-%): run-%: %
+	time ./$* >/dev/null
+run-%: %
 	time ./$* >/dev/null
 
 run-%.js:
-	ulimit -s unlimited && time node --stack-size=400000000 $*.js > /dev/null
+	ulimit -s unlimited && \
+	time node --stack-size=400000000 $*.js > /dev/null
 
 %: %.hs
 	$(GHC) $(GHCFLAGS) -main-is $* $<
