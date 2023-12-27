@@ -8,6 +8,10 @@
 #undef _NDEBUG
 #include <assert.h>
 
+/* long alloced = 0; */
+/* long resolved = 0; */
+/* long chased = 0; */
+
 #define MAX_ALIGN (_Alignof(max_align_t))
 #define MIN_ARENA 960
 
@@ -76,49 +80,33 @@ struct Predicate {
     // ... actual users follow with more data.
 };
 
+// A measure is always contained inside a predicate.
 typedef struct Measure Measure;
 typedef bool MeasureF(Measure * binding, Arena * a, Predicate * p);
 struct Measure {
+    PredicateF * predicate;
     MeasureF * measure;
 };
 
 typedef struct BoundSearch1 {
-    Predicate b;
+    Measure b;
     Predicate * x;
     Arena * arena;
     uint64_t low;
-    uint64_t pivot;
+    uint64_t mid;
     uint64_t high;
     Measure * q;
 } BoundSearch1;
 
 typedef struct BoundSearch2 {
-    // FIXME - if we always kept the length, then laziness could be done
-    // via copying in the result.
-    Predicate b;
+    Measure b;
     Arena * arena;
-    Predicate * y;
     Predicate * x;
+    Predicate * y;
+    uint64_t low;
     uint64_t high;
-    uint64_t pivot;
     Measure * q;
 } BoundSearch2;
-
-typedef struct BoundMeasure1 {
-    // TODO - it seems every measure is created in the context of a predicate,
-    // so we could do some combining...
-    Measure m;
-    BoundSearch1 * s;
-} BoundMeasure1;
-
-
-typedef struct BoundMeasure2 {
-    // TODO - it seems every measure is created in the context of a predicate,
-    // so we could do some combining...
-    Measure m;
-    BoundSearch2 * s;
-    Predicate * x;
-} BoundMeasure2;
 
 typedef struct BoundMerge {
     Predicate b;
@@ -152,8 +140,8 @@ static Predicate * merge(
 
 static bool search2measure(Measure * me, Arena * a, Predicate * y)
 {
-    BoundSearch2 * s = ((BoundMeasure2 *) me)->s;
-    Predicate * merged = merge(a, s->pivot, s->x, y);
+    BoundSearch2 * s = (BoundSearch2 *) me;
+    Predicate * merged = merge(a, s->low, s->x, y);
     return s->q->measure(s->q, a, merged);
 }
 
@@ -161,10 +149,7 @@ static bool search2worker(Predicate * p, uint64_t n)
 {
     BoundSearch2 * s = (BoundSearch2 *) p;
     if (!s->y) {
-        BoundMeasure2 * m = arena_alloc(s->arena, sizeof(BoundMeasure2));
-        m->m.measure = search2measure;
-        m->s = s;
-        s->y = range(s->arena, s->pivot, s->high, (Measure *) m);
+        s->y = range(s->arena, s->low, s->high, (Measure *) s);
     }
 
     return s->y->predicate(s->y, n);
@@ -172,14 +157,15 @@ static bool search2worker(Predicate * p, uint64_t n)
 
 
 static Predicate * search_high(
-    Arena * a, uint64_t pivot, Predicate * x, uint64_t high, Measure * q)
+    Arena * a, Predicate * x, uint64_t low, uint64_t high, Measure * q)
 {
     BoundSearch2 * y = arena_alloc(a, sizeof(BoundSearch2));
     y->b.predicate = search2worker;
+    y->b.measure = search2measure;
     y->y = NULL;
     y->arena = a;
     y->x = x;
-    y->pivot = pivot;
+    y->low = low;
     y->high = high;
     y->q = q;
     return (Predicate *) y;
@@ -187,9 +173,9 @@ static Predicate * search_high(
 
 static bool search1measure(Measure * me, Arena * a, Predicate * x)
 {
-    BoundSearch1 * s = ((BoundMeasure1 *) me)->s;
+    BoundSearch1 * s = (BoundSearch1 *) me;
     Predicate * merged = merge(
-        a, s->pivot, x, search_high(a, s->pivot, x, s->high, s->q));
+        a, s->mid, x, search_high(a, x, s->mid, s->high, s->q));
     return s->q->measure(s->q, a, merged);
 }
 
@@ -197,28 +183,26 @@ static bool search1worker(Predicate * p, uint64_t n)
 {
     BoundSearch1 * s = (BoundSearch1 *) p;
     if (!s->x) {
-        BoundMeasure1 * m = arena_alloc(s->arena, sizeof(BoundMeasure1));
-        m->m.measure = search1measure;
-        m->s = s;
-        s->x = range(s->arena, s->low, s->pivot, (Measure *) m);
+        s->x = range(s->arena, s->low, s->mid, (Measure *) s);
     }
 
     return s->x->predicate(s->x, n);
 }
 
 static Predicate * split(
-    Arena * a, uint64_t low, uint64_t pivot, uint64_t high, Measure * q)
+    Arena * a, uint64_t low, uint64_t mid, uint64_t high, Measure * q)
 {
     BoundSearch1 * x = arena_alloc(a, sizeof(BoundSearch1));
     x->b.predicate = search1worker;
+    x->b.measure = search1measure;
     x->arena = a;
     x->x = NULL;
     x->low = low;
-    x->pivot = pivot;
+    x->mid = mid;
     x->high = high;
     x->q = q;
-    Predicate * y = search_high(a, pivot, (Predicate *) x, high, q);
-    return merge(a, pivot, (Predicate *) x, y);
+    Predicate * y = search_high(a, (Predicate *) x, mid, high, q);
+    return merge(a, mid, (Predicate *) x, y);
 }
 
 static bool returnTrue(Predicate * p, uint64_t n)
@@ -242,13 +226,13 @@ static Predicate * range(Arena * a, uint64_t low, uint64_t high, Measure * q)
     if (high == low + 1)
         return q->measure(q, a, &constTrue) ? &constTrue : &constFalse;
 
-    uint64_t pivot;
+    uint64_t mid;
     if (high == 0)
-        pivot = low * 2 + 1;
+        mid = low * 2 + 1;
     else
-        pivot = low + (high - low) / 2;
+        mid = low + (high - low) / 2;
 
-    return split(a, low, pivot, high, q);
+    return split(a, low, mid, high, q);
 }
 
 
@@ -375,7 +359,7 @@ static const Raw * raw(Arena * ar, Measure * q)
     struct {
         Measure b;
         Measure * q;
-    } negarg = { { negMeasure }, q };
+    } negarg = { { NULL, negMeasure }, q };
     Predicate * different = range(
         &a, 0, 0, p_arbitrary ? (Measure *) &negarg : q);
     if (q->measure(q, &a, different) == p_arbitrary) {
@@ -584,7 +568,7 @@ static bool martin(Measure * m, Arena * a, Predicate * p)
     return p->predicate(p, n) != p->predicate(p, n+1);
 }
 
-static Measure Martin = { martin };
+static Measure Martin = { NULL, martin };
 
 int main(void)
 {
