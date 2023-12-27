@@ -9,56 +9,63 @@
 #include <assert.h>
 
 #define MAX_ALIGN (_Alignof(max_align_t))
+#define MIN_ARENA 960
 
 typedef struct Binding Binding;
 typedef struct Arena Arena;
 
 typedef struct Arena {
-    struct {
-        struct Arena * chain;
-        size_t total;
-        size_t used;
-    };
-    _Alignas(max_align_t) uint8_t storage[];
+    struct Arena * chain;
+    size_t total;
+    size_t used;
+
+    _Alignas(max_align_t) uint8_t storage[MIN_ARENA];
 } Arena;
+_Static_assert(sizeof(Arena) <= MIN_ARENA + MAX_ALIGN + 32, "");
 
 #define ARENA_BASE (offsetof(Arena, storage))
 
-static void * arena_alloc(Arena ** arena, size_t size)
+static void arena_init(Arena * arena)
+{
+    arena->chain = arena;
+    arena->total = MIN_ARENA;
+    arena->used = 0;
+}
+
+static void * arena_alloc(Arena * arena, size_t size)
 {
     // Round up to a multiple of maximum alignment.
     size = (size + MAX_ALIGN - 1) & -MAX_ALIGN;
-    if (*arena != NULL && size <= (*arena)->total - (*arena)->used) {
+    Arena * current = arena->chain;
+    if (size <= current->total - current->used) {
         // Allocate the space...
-        void * result = (*arena)->storage + (*arena)->used;
-        (*arena)->used += size;
+        void * result = current->storage + current->used;
+        current->used += size;
         return result;
     }
-    size_t extend = *arena ? 2 * (*arena)->total : 480;
-    size_t total = size > extend ? size : extend;
+    size_t total = 2 * current->total > size ? 2 * current->total : size;
     Arena * a = malloc(offsetof(Arena, storage) + total);
     assert(a);
-    a->chain = *arena;
-    *arena = a;
+    a->chain = current;
     a->total = total;
     a->used = (size + MAX_ALIGN - 1) & -MAX_ALIGN;
+    arena->chain = a;
     return a->storage;
 }
 
-static void arena_free(Arena ** arena_pointer)
+static void arena_free(Arena * arena)
 {
-    /* if (true) */
-    /*     return; */
-    uint64_t total = 0;
-    Arena * arena = *arena_pointer;
-    while (arena != NULL) {
-        total += arena->total;
-        Arena * a = arena->chain;
-        free(arena);
-        arena = a;
+    uint64_t total = arena->total;
+    uint64_t used = arena->used;
+    for (Arena * current = arena->chain; current != arena;) {
+        total += current->total;
+        used += current->used;
+        Arena * chain = current->chain;
+        free(current);
+        current = chain;
     }
-    //printf("Freed %lu\n", total);
-    *arena_pointer = NULL;
+    arena_init(arena);
+    // printf("Freed %lu %lu\n", total, used);
 }
 
 typedef struct Predicate Predicate;
@@ -70,7 +77,7 @@ struct Predicate {
 };
 
 typedef struct Measure Measure;
-typedef bool MeasureF(Measure * binding, Arena ** a, Predicate * p);
+typedef bool MeasureF(Measure * binding, Arena * a, Predicate * p);
 struct Measure {
     MeasureF * function;
 };
@@ -78,7 +85,7 @@ struct Measure {
 typedef struct BoundSearch1 {
     Predicate b;
     Predicate * x;
-    Arena ** arena;
+    Arena * arena;
     uint64_t low;
     uint64_t pivot;
     uint64_t high;
@@ -89,7 +96,7 @@ typedef struct BoundSearch2 {
     // FIXME - if we always kept the length, then laziness could be done
     // via copying in the result.
     Predicate b;
-    Arena ** arena;
+    Arena * arena;
     Predicate * y;
     Predicate * x;
     uint64_t high;
@@ -121,7 +128,7 @@ typedef struct BoundMerge {
 } BoundMerge;
 
 static Predicate * range(
-    Arena ** a, uint64_t low, uint64_t high, Measure * q);
+    Arena * a, uint64_t low, uint64_t high, Measure * q);
 
 static bool merge_worker(Predicate * p, uint64_t n)
 {
@@ -133,7 +140,7 @@ static bool merge_worker(Predicate * p, uint64_t n)
 }
 
 static Predicate * merge(
-    Arena ** a, uint64_t pivot, Predicate * x, Predicate * y)
+    Arena * a, uint64_t pivot, Predicate * x, Predicate * y)
 {
     BoundMerge * m = arena_alloc(a, sizeof(BoundMerge));
     m->b.function = merge_worker;
@@ -143,7 +150,7 @@ static Predicate * merge(
     return (Predicate *) m;
 }
 
-static bool search2measure(Measure * me, Arena ** a, Predicate * y)
+static bool search2measure(Measure * me, Arena * a, Predicate * y)
 {
     BoundSearch2 * s = ((BoundMeasure2 *) me)->s;
     Predicate * merged = merge(a, s->pivot, s->x, y);
@@ -165,7 +172,7 @@ static bool search2worker(Predicate * p, uint64_t n)
 
 
 static Predicate * search_high(
-    Arena ** a, uint64_t pivot, Predicate * x, uint64_t high, Measure * q)
+    Arena * a, uint64_t pivot, Predicate * x, uint64_t high, Measure * q)
 {
     BoundSearch2 * y = arena_alloc(a, sizeof(BoundSearch2));
     y->b.function = search2worker;
@@ -178,7 +185,7 @@ static Predicate * search_high(
     return (Predicate *) y;
 }
 
-static bool search1measure(Measure * me, Arena ** a, Predicate * x)
+static bool search1measure(Measure * me, Arena * a, Predicate * x)
 {
     BoundSearch1 * s = ((BoundMeasure1 *) me)->s;
     Predicate * merged = merge(
@@ -200,7 +207,7 @@ static bool search1worker(Predicate * p, uint64_t n)
 }
 
 static Predicate * split(
-    Arena ** a, uint64_t low, uint64_t pivot, uint64_t high, Measure * q)
+    Arena * a, uint64_t low, uint64_t pivot, uint64_t high, Measure * q)
 {
     BoundSearch1 * x = arena_alloc(a, sizeof(BoundSearch1));
     x->b.function = search1worker;
@@ -230,7 +237,7 @@ static Predicate constFalse = { returnFalse };
 
 // We overload `high==0` to mean unbounded, unlike the versions in other
 // languages, which split out that as a separate function `after`.
-static Predicate * range(Arena ** a, uint64_t low, uint64_t high, Measure * q)
+static Predicate * range(Arena * a, uint64_t low, uint64_t high, Measure * q)
 {
     if (high == low + 1)
         return q->function(q, a, &constTrue) ? &constTrue : &constFalse;
@@ -285,7 +292,7 @@ typedef struct NegMeasure {
     Measure * q;
 } NegMeasure;
 
-static bool negMeasure(Measure * m, Arena ** a, Predicate * p)
+static bool negMeasure(Measure * m, Arena * a, Predicate * p)
 {
     NegMeasure * n = (NegMeasure *) m;
     return !n->q->function(n->q, a, p);
@@ -301,7 +308,8 @@ typedef struct Partial {
 static bool partialF(Predicate * pr, uint64_t n)
 {
     Partial * p = (Partial *) pr;
-    Arena * a = NULL;
+    Arena a;
+    arena_init(&a);
     Predicate * merged = merge(&a, n, &Arbitrary, p->different);
     bool q_merged = p->q->function(p->q, &a, merged);
     arena_free(&a);
@@ -315,7 +323,7 @@ typedef struct Special {
     bool v;
 } Special;
 
-bool special_worker(Predicate * p, uint64_t n)
+static bool special_worker(Predicate * p, uint64_t n)
 {
     Special * s = (Special *) p;
     if (n == s->n)
@@ -324,7 +332,7 @@ bool special_worker(Predicate * p, uint64_t n)
         return s->inner->function(s->inner, n);
 }
 
-static Predicate * special(Arena ** a, Predicate * p, uint64_t n, bool v)
+static Predicate * special(Arena * a, Predicate * p, uint64_t n, bool v)
 {
     Special * s = arena_alloc(a, sizeof(Special));
     s->b.function = special_worker;
@@ -341,14 +349,14 @@ typedef struct Specialize {
     bool v;
 } Specialize;
 
-static bool specialize_worker(Measure * m, Arena ** a, Predicate * p)
+static bool specialize_worker(Measure * m, Arena * a, Predicate * p)
 {
     Specialize * s = (Specialize *) m;
     Predicate * sp = special(a, p, s->n, s->v);
     return s->inner->function(s->inner, a, sp);
 }
 
-static Measure * specialize(Arena ** a, Measure * m, uint64_t n, bool v)
+static Measure * specialize(Arena * a, Measure * m, uint64_t n, bool v)
 {
     Specialize * s = arena_alloc(a, sizeof(Specialize));
     s->b.function = specialize_worker;
@@ -358,9 +366,10 @@ static Measure * specialize(Arena ** a, Measure * m, uint64_t n, bool v)
     return (Measure *) s;
 }
 
-static const Raw * raw(Arena ** ar, Measure * q)
+static const Raw * raw(Arena * ar, Measure * q)
 {
-    Arena * a = NULL;
+    Arena a;
+    arena_init(&a);
     bool p_arbitrary = q->function(q, &a, &Arbitrary);
     arena_free(&a);
     struct {
@@ -422,7 +431,7 @@ static bool raw_eq_slice(const Raw * l, const Raw * r, uint64_t pivot, bool v)
 }
 
 // Move to new arena...
-static const Raw * dup(Arena ** a, const Raw * r)
+static const Raw * dup(Arena * a, const Raw * r)
 {
     if (r->tt == NULL)
         return r;
@@ -434,7 +443,7 @@ static const Raw * dup(Arena ** a, const Raw * r)
 }
 
 // Always copy....
-static const Raw * slice(Arena ** a, const Raw * r, uint64_t pivot, bool v)
+static const Raw * slice(Arena * a, const Raw * r, uint64_t pivot, bool v)
 {
     if (r->tt == NULL)
         return r;
@@ -463,7 +472,7 @@ typedef struct HashTable {
     HTNode * buckets[HT_PRIME];
 } HashTable;
 
-static void weights(Arena ** a, HashTable * ht, double w, const Raw * r)
+static void weights(Arena * a, HashTable * ht, double w, const Raw * r)
 {
     if (r->tt == NULL)
         return;
@@ -487,7 +496,8 @@ static uint64_t max_weight(const Raw * r)
 {
     HashTable ht;
     memset(&ht, 0, sizeof(ht));
-    Arena * a = NULL;
+    Arena a;
+    arena_init(&a);
     weights(&a, &ht, 1, r);
     uint64_t pivot = 0;
     double max_w = 0;
@@ -504,14 +514,15 @@ static uint64_t max_weight(const Raw * r)
 }
 
 
-static const Raw * optimize(Arena ** a, const Raw * r)
+static const Raw * optimize(Arena * a, const Raw * r)
 {
     if (r->tt == NULL)
         return r;
     uint64_t pivot = max_weight(r);
     Raw * node = arena_alloc(a, sizeof(Raw));
     node->pivot = pivot;
-    Arena * temp = NULL;
+    Arena temp;
+    arena_init(&temp);
     node->tt = optimize(a, slice(&temp, r, pivot, true));
     arena_free(&temp);
     node->ff = optimize(a, slice(&temp, r, pivot, false));
@@ -559,7 +570,7 @@ static void cook(const Raw * r)
     putchar(')');
 }
 
-static bool martin(Measure * m, Arena ** a, Predicate * p)
+static bool martin(Measure * m, Arena * a, Predicate * p)
 {
     int n = 0;
     if (p->function(p, 111111111111111))
@@ -577,9 +588,11 @@ static Measure Martin = { martin };
 
 int main(void)
 {
-    Arena * a = NULL;
+    Arena a;
+    arena_init(&a);
     const Raw * r = raw(&a, &Martin);
-    Arena * b = NULL;
+    Arena b;
+    arena_init(&b);
     r = optimize(&b, r);
     arena_free(&a);
     r = optimize(&a, r);

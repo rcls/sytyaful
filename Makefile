@@ -9,7 +9,7 @@ OCAML=ocamlopt
 OCAMLFLAGS=-O2
 
 CC=gcc
-CFLAGS=-O2 -flto -std=c11 -Wall -Werror
+CFLAGS=-O2 -ggdb -flto -std=c11 -Wall -Werror
 
 BIN=R S sytyaful msearch mtree search tree osearch otree
 FAST=$(BIN) search.js
