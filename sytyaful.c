@@ -72,14 +72,14 @@ typedef struct Predicate Predicate;
 typedef bool PredicateF(Predicate * binding, uint64_t n);
 
 struct Predicate {
-    PredicateF * function;
+    PredicateF * predicate;
     // ... actual users follow with more data.
 };
 
 typedef struct Measure Measure;
 typedef bool MeasureF(Measure * binding, Arena * a, Predicate * p);
 struct Measure {
-    MeasureF * function;
+    MeasureF * measure;
 };
 
 typedef struct BoundSearch1 {
@@ -134,16 +134,16 @@ static bool merge_worker(Predicate * p, uint64_t n)
 {
     BoundMerge * m = (BoundMerge *) p;
     if (n < m->pivot)
-        return m->x->function(m->x, n);
+        return m->x->predicate(m->x, n);
     else
-        return m->y->function(m->y, n);
+        return m->y->predicate(m->y, n);
 }
 
 static Predicate * merge(
     Arena * a, uint64_t pivot, Predicate * x, Predicate * y)
 {
     BoundMerge * m = arena_alloc(a, sizeof(BoundMerge));
-    m->b.function = merge_worker;
+    m->b.predicate = merge_worker;
     m->pivot = pivot;
     m->x = x;
     m->y = y;
@@ -154,7 +154,7 @@ static bool search2measure(Measure * me, Arena * a, Predicate * y)
 {
     BoundSearch2 * s = ((BoundMeasure2 *) me)->s;
     Predicate * merged = merge(a, s->pivot, s->x, y);
-    return s->q->function(s->q, a, merged);
+    return s->q->measure(s->q, a, merged);
 }
 
 static bool search2worker(Predicate * p, uint64_t n)
@@ -162,12 +162,12 @@ static bool search2worker(Predicate * p, uint64_t n)
     BoundSearch2 * s = (BoundSearch2 *) p;
     if (!s->y) {
         BoundMeasure2 * m = arena_alloc(s->arena, sizeof(BoundMeasure2));
-        m->m.function = search2measure;
+        m->m.measure = search2measure;
         m->s = s;
         s->y = range(s->arena, s->pivot, s->high, (Measure *) m);
     }
 
-    return s->y->function(s->y, n);
+    return s->y->predicate(s->y, n);
 }
 
 
@@ -175,7 +175,7 @@ static Predicate * search_high(
     Arena * a, uint64_t pivot, Predicate * x, uint64_t high, Measure * q)
 {
     BoundSearch2 * y = arena_alloc(a, sizeof(BoundSearch2));
-    y->b.function = search2worker;
+    y->b.predicate = search2worker;
     y->y = NULL;
     y->arena = a;
     y->x = x;
@@ -190,7 +190,7 @@ static bool search1measure(Measure * me, Arena * a, Predicate * x)
     BoundSearch1 * s = ((BoundMeasure1 *) me)->s;
     Predicate * merged = merge(
         a, s->pivot, x, search_high(a, s->pivot, x, s->high, s->q));
-    return s->q->function(s->q, a, merged);
+    return s->q->measure(s->q, a, merged);
 }
 
 static bool search1worker(Predicate * p, uint64_t n)
@@ -198,19 +198,19 @@ static bool search1worker(Predicate * p, uint64_t n)
     BoundSearch1 * s = (BoundSearch1 *) p;
     if (!s->x) {
         BoundMeasure1 * m = arena_alloc(s->arena, sizeof(BoundMeasure1));
-        m->m.function = search1measure;
+        m->m.measure = search1measure;
         m->s = s;
         s->x = range(s->arena, s->low, s->pivot, (Measure *) m);
     }
 
-    return s->x->function(s->x, n);
+    return s->x->predicate(s->x, n);
 }
 
 static Predicate * split(
     Arena * a, uint64_t low, uint64_t pivot, uint64_t high, Measure * q)
 {
     BoundSearch1 * x = arena_alloc(a, sizeof(BoundSearch1));
-    x->b.function = search1worker;
+    x->b.predicate = search1worker;
     x->arena = a;
     x->x = NULL;
     x->low = low;
@@ -240,7 +240,7 @@ static Predicate constFalse = { returnFalse };
 static Predicate * range(Arena * a, uint64_t low, uint64_t high, Measure * q)
 {
     if (high == low + 1)
-        return q->function(q, a, &constTrue) ? &constTrue : &constFalse;
+        return q->measure(q, a, &constTrue) ? &constTrue : &constFalse;
 
     uint64_t pivot;
     if (high == 0)
@@ -256,13 +256,13 @@ static uint64_t limit(Predicate * p)
 {
     uint64_t m = 0;
     uint64_t n = 1;
-    while (p->function(p, n)) {
+    while (p->predicate(p, n)) {
         m = n;
         n = 2 * m + 1;
     }
     while (n - m > 1) {
         uint64_t pivot = m + (n - m) / 2;
-        if (p->function(p, pivot))
+        if (p->predicate(p, pivot))
             m = pivot;
         else
             n = pivot;
@@ -295,7 +295,7 @@ typedef struct NegMeasure {
 static bool negMeasure(Measure * m, Arena * a, Predicate * p)
 {
     NegMeasure * n = (NegMeasure *) m;
-    return !n->q->function(n->q, a, p);
+    return !n->q->measure(n->q, a, p);
 }
 
 typedef struct Partial {
@@ -311,7 +311,7 @@ static bool partialF(Predicate * pr, uint64_t n)
     Arena a;
     arena_init(&a);
     Predicate * merged = merge(&a, n, &Arbitrary, p->different);
-    bool q_merged = p->q->function(p->q, &a, merged);
+    bool q_merged = p->q->measure(p->q, &a, merged);
     arena_free(&a);
     return q_merged != p->p_arbitrary;
 }
@@ -329,13 +329,13 @@ static bool special_worker(Predicate * p, uint64_t n)
     if (n == s->n)
         return s->v;
     else
-        return s->inner->function(s->inner, n);
+        return s->inner->predicate(s->inner, n);
 }
 
 static Predicate * special(Arena * a, Predicate * p, uint64_t n, bool v)
 {
     Special * s = arena_alloc(a, sizeof(Special));
-    s->b.function = special_worker;
+    s->b.predicate = special_worker;
     s->inner = p;
     s->n = n;
     s->v = v;
@@ -353,13 +353,13 @@ static bool specialize_worker(Measure * m, Arena * a, Predicate * p)
 {
     Specialize * s = (Specialize *) m;
     Predicate * sp = special(a, p, s->n, s->v);
-    return s->inner->function(s->inner, a, sp);
+    return s->inner->measure(s->inner, a, sp);
 }
 
 static Measure * specialize(Arena * a, Measure * m, uint64_t n, bool v)
 {
     Specialize * s = arena_alloc(a, sizeof(Specialize));
-    s->b.function = specialize_worker;
+    s->b.measure = specialize_worker;
     s->inner = m;
     s->n = n;
     s->v = v;
@@ -370,7 +370,7 @@ static const Raw * raw(Arena * ar, Measure * q)
 {
     Arena a;
     arena_init(&a);
-    bool p_arbitrary = q->function(q, &a, &Arbitrary);
+    bool p_arbitrary = q->measure(q, &a, &Arbitrary);
     arena_free(&a);
     struct {
         Measure b;
@@ -378,7 +378,7 @@ static const Raw * raw(Arena * ar, Measure * q)
     } negarg = { { negMeasure }, q };
     Predicate * different = range(
         &a, 0, 0, p_arbitrary ? (Measure *) &negarg : q);
-    if (q->function(q, &a, different) == p_arbitrary) {
+    if (q->measure(q, &a, different) == p_arbitrary) {
         arena_free(&a);
         return p_arbitrary ? &RawT : &RawF;
     }
@@ -573,15 +573,15 @@ static void cook(const Raw * r)
 static bool martin(Measure * m, Arena * a, Predicate * p)
 {
     int n = 0;
-    if (p->function(p, 111111111111111))
+    if (p->predicate(p, 111111111111111))
         n += 1;
-    if (p->function(p, 222222222222222))
+    if (p->predicate(p, 222222222222222))
         n += 2;
-    if (p->function(p, 333333333333333))
+    if (p->predicate(p, 333333333333333))
         n += 4;
-    if (p->function(p, 444444444444444))
+    if (p->predicate(p, 444444444444444))
         n += 8;
-    return p->function(p, n) != p->function(p, n+1);
+    return p->predicate(p, n) != p->predicate(p, n+1);
 }
 
 static Measure Martin = { martin };
