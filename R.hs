@@ -8,7 +8,7 @@ merge n x y u = if u < n then x u else y u
 cc q xx f = inline f $ xx $ q . f  -- The inline decreases runtime by about 10%.
 
 {-# INLINE lift #-}
-lift n xx yy q = cc q xx $ cc q yy . merge n
+lift !n xx yy q = cc q xx $ cc q yy . merge n
 
 range m p q | m+1==p = const $ q $ const True
 range m p q = lift n (range m n) (range n p) q where n = div (m + p) 2
