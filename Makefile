@@ -8,7 +8,10 @@ GHCFLAGS=-O2
 OCAML=ocamlopt
 OCAMLFLAGS=-O2
 
-BIN=R S msearch mtree search tree osearch otree
+CC=gcc
+CFLAGS=-O2 -flto -std=c11 -Wall -Werror
+
+BIN=R S sytyaful msearch mtree search tree osearch otree
 FAST=$(BIN) search.js
 PROG=$(BIN) Opt.py search.lua
 
