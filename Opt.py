@@ -1,4 +1,15 @@
-#!/usr/bin/python3
+#!/usr/bin/pypy3
+
+# python 3.12 changed the handling of setrecursionlimit, breaking this code.
+# Either use python 3.11 or earlier, or a different python implementation (such
+# as pypy).
+#
+# The cpython interpreter has two stacks, a Python stack and a C stack.
+# setrecursionlimit in python 3.12 only applies to the Python stack, with a
+# hardwired limit of 1500 frames on C stack depth.  Python 3.12 has many, but
+# not all, python stack frames purely on the Python stack and not using the C
+# stack.  However, if you get unlucky and the interpreter uses C stack for your
+# code, then setrecursionlimit is not effective.
 
 import resource
 import sys
@@ -12,7 +23,7 @@ def Merge(n,x,y):
     return lambda u, n=n, x=x, y=y: x(u) if u < n else y(u)
 
 class SearchYforFXY:
-    __slots__ = 'f', 'x', 'yy', 'q', 'y'
+    #__slots__ = 'f', 'x', 'yy', 'q', 'y'
     def __init__(self, f, x, yy, q):
         self.f  = f
         self.x  = x
@@ -27,7 +38,7 @@ class SearchYforFXY:
         return self.y(u)
 
 class SearchXforFXY:
-    __slots__ = 'f', 'xx', 'yy', 'q', 'x'
+    #__slots__ = 'f', 'xx', 'yy', 'q', 'x'
     def __init__(self, f, xx, yy, q):
         self.f  = f
         self.xx = xx
@@ -80,7 +91,7 @@ def raw(p):
     def arbitrary(n):
         return (n & 1) != 0
     p_arbitrary = p(arbitrary)
-    different = after(0, lambda f, p=p: p(f) != p_arbitrary)
+    different = after(0, lambda f: p(f) != p_arbitrary)
     if p(different) == p_arbitrary:
         return not not p_arbitrary
     def partial(n):

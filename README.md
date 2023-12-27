@@ -17,6 +17,12 @@ just fine.  But to have run-times within the age of the universe, you need more
 sharing: use some laziness and pull things outside of λ-abstractions
 appropriately.
 
+Note that the run time is very sensitive to the order of evaluation.
+Specifically, on the `lift` functions which order do we put the two sub-searches
+on, and also, searching for the pivot, which way round are merged `arbitrary`
+and `different` parameters.  I have kept this identical between the different
+versions.
+
 * **S.hs** The gold-standard Haskell version.  Uses Applicative.  Monad is also
   defined but not used.  Assumes that `Word` is 64-bits.  Compiling with `ghc
   -main-is S -O2 S` on my desktop, the run-time is about 0.55 seconds.
@@ -72,7 +78,8 @@ appropriately.
   functional programming.  It's got nice clean semantics with the glaring
   exception that variables are global by default, unless you declare them
   to be local.  Similar run-time to the Python version, without any of
-  the performance hacks I did for the latter.
+  the performance hacks I did for the latter.  (Update: running with luajit
+  speeds it up by a factor of about 3.)
 
 * **C++** I did one once.  It was not pretty.  Too embarrassing to make public.
   Friends don't let friends do C++.  Attempting to unbox anything falls afoul of

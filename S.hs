@@ -5,26 +5,22 @@ import Data.Map hiding (map)
 
 infixr 0 ?
 
-newtype S a = S { (?) :: (a -> Bool) -> a }
+newtype S a = S{(?) :: (a -> Bool) -> a} deriving Functor
 
 cc :: (b -> Bool) -> S a -> (a -> b) -> b
 cc q xx f = f (xx ? q . f)
 
-instance Functor S where
-  fmap f xx = S $ \q -> cc q xx f
-  x <$ yy   = S $ const x
-
 instance Applicative S where
   pure = S . const
+
   ff <*> xx      = S $ \q -> cc q ff $ cc q xx
   liftA2 f xx yy = S $ \q -> cc q xx $ cc q yy . f
+
   xx *> yy = yy
   xx <* yy = xx
 
 instance Monad S where
-  return = S . const
   xx >>= f = S $ \q -> cc q xx $ \x -> f x ? q
-  xx >> yy = yy
 
 tree :: (Word -> a -> a -> a) -> (Word -> a) -> a
 tree join leaf = after 0 where
@@ -34,7 +30,7 @@ tree join leaf = after 0 where
 
 merge n f g x = if x < n then f x else g x
 
-snat s q = tree (\n f g -> merge n <$> f <*> g) (\n -> const <$> s) ? q
+snat s q = tree (\(!n) f g -> merge n <$> f <*> g) (\_ -> const <$> s) ? q
 
 best = snat $ S $ \f -> f True
 

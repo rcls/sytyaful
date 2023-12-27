@@ -37,7 +37,7 @@ function between(m, p, q)
     if m + 1 == p then
         return Const(q(Const(true)))
     end
-    local n = (m + p) // 2
+    local n = (m + p) / 2
     return lift(n,
                 function (q) return between(m, n, q) end,
                 function (q) return between(n, p, q) end,
@@ -60,13 +60,13 @@ function limit(f)
         n = 2 * m + 1
     end
     while n - m > 1 do
-        local p = (m + n) // 2
+        local p = (m + n) / 2
         if f(p) then m = p else n = p end
     end
     return m
 end
 
-function arbitrary(n) return (n & 1) ~= 0 end
+function arbitrary(n) return (n % 2) ~= 0 end
 
 function raw(p)
     local p_arbitrary = p(arbitrary)

@@ -1,17 +1,14 @@
-{-# LANGUAGE DeriveFunctor #-}
 module R where
 
 import Data.Map hiding (map)
+import GHC.Exts(inline)
 
 merge n x y u = if u < n then x u else y u
 
-cc q xx f = f (xx $ q . f)
+cc q xx f = inline f $ xx $ q . f  -- The inline decreases runtime by about 10%.
 
--- For some reason, keeping liftx as a separate function makes approx 10%
--- improvement to performance.
-liftx f yy q = cc q yy . merge f
-
-lift f xx yy q = cc q xx $ liftx f yy q
+{-# INLINE lift #-}
+lift n xx yy q = cc q xx $ cc q yy . merge n
 
 range m p q | m+1==p = const $ q $ const True
 range m p q = lift n (range m n) (range n p) q where n = div (m + p) 2
@@ -23,7 +20,7 @@ limit f = aft 0 where
   bet m p|m+1==p = m
   bet m p = if f n then bet n p else bet m n where n = div (m+p) 2
 
-data Raw a = K a | C Word (Raw a) (Raw a) deriving (Eq, Functor, Show)
+data Raw a = K !a | C !Word !(Raw a) !(Raw a) deriving (Eq, Functor, Show)
 
 raw p = if pArbitrary == p different then K pArbitrary
         else C pivot (slice True) (slice False) where
@@ -37,8 +34,8 @@ data Graph = Graph :|: Graph | Graph :&: Graph | Graph :^: Graph
   | IF Word Graph Graph | T | F | AT Word | NAT Word deriving Show
 
 cook(K b) = if b then T else F
-cook(C n (K x) (K y)) =
-  if x then if y then T else AT n else if y then NAT n else F
+cook(C n (K True) (K False)) = AT n
+cook(C n (K False) (K True)) = NAT n
 cook(C n (K x) r) = if x then  AT n :|: cook r else NAT n :&: cook r
 cook(C n r (K x)) = if x then NAT n :|: cook r else  AT n :&: cook r
 cook(C n r s) | r==(not<$>s) = AT n :^: cook s

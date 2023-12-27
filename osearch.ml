@@ -2,14 +2,14 @@
 let force = Lazy.force
 
 let merge  (n:int) x y u = if u < n then       x u else       y u
-let merge1 (f:int) x y u = if u < f then force x u else       y u
-let merge2 (f:int) x y u = if u < f then       x u else force y u
+let merge1 (n:int) x y u = if u < n then force x u else       y u
+let merge2 (n:int) x y u = if u < n then       x u else force y u
 
-let lift f xx yy q =
-  let yx x = lazy (yy (fun y -> q (merge f x y))) in
-  let x = lazy (xx (fun x -> q (merge2 f x (yx x)))) in
-  let y = lazy (yy (fun y -> q (merge1 f x y)))
-  in fun u -> if u < f then force x u else force y u
+let lift n xx yy q =
+  let yx x = lazy (yy (fun y -> q (merge n x y))) in
+  let x = lazy (xx (fun x -> q (merge2 n x (yx x)))) in
+  let y = lazy (yy (fun y -> q (merge1 n x y)))
+  in fun u -> if u < n then force x u else force y u
 
 let const x _ = x
 
@@ -20,19 +20,19 @@ let rec range m p q =
 let rec after m q = let n = 2 * m + 1 in lift n (range m n) (after n) q
 
 let limit f =
-  let rec betwn m n =
+  let rec bet m n =
     if m+1 = n then m else
-      let p = (m + n) / 2 in if f p then betwn p n else betwn m p in
-  let rec after m =
-    let n = 2 * m + 1 in if f n then after n else betwn m n
-  in after 0
+      let p = (m + n) / 2 in if f p then bet p n else bet m p in
+  let rec aft m =
+    let n = 2 * m + 1 in if f n then aft n else bet m n
+  in aft 0
 
 type raw = T | F | C of int * raw * raw
 
 let rec raw p =
   let arbitrary n = n mod 2 = 1 in
   let pArbitrary = p arbitrary in
-  let different = after 0 (fun f -> p f <> pArbitrary) in
+  let different = after 0 (fun f -> p f != pArbitrary) in
   if p different = pArbitrary then if pArbitrary then T else F
   else
     let pivot = limit(fun n -> p(merge n arbitrary different) != pArbitrary) in
