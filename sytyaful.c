@@ -452,6 +452,16 @@ static bool raw_eq(const Raw * l, const Raw * r)
     return l->pivot == r->pivot && raw_eq(l->tt, r->tt) && raw_eq(l->ff, r->ff);
 }
 
+static bool raw_eq_neg(const Raw * l, const Raw * r)
+{
+    if (l->tt == NULL && r->tt == NULL && l->pivot != r->pivot)
+        return true;
+    if (l->tt == NULL || r->tt == NULL)
+        return false;
+    return l->pivot == r->pivot
+        && raw_eq_neg(l->tt, r->tt) && raw_eq_neg(l->ff, r->ff);
+}
+
 // Check if l is the same as a slicing of r.
 static bool raw_eq_slice(const Raw * l, const Raw * r, uint64_t pivot, bool v)
 {
@@ -603,6 +613,11 @@ static void cook(const Raw * r)
         else
             printf("@%lu&&", r->pivot);
         cook(r->tt);
+        return;
+    }
+    if (raw_eq_neg(r->tt, r->ff)) {
+        printf("@%lu^", r->pivot);
+        cook(r->ff);
         return;
     }
     printf("(IF %lu ", r->pivot);
