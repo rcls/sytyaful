@@ -2,6 +2,7 @@ module R where
 
 import Data.Map hiding (map)
 import GHC.Exts(inline)
+import System.Environment(getArgs)
 
 merge n x y u = if u < n then x u else y u
 
@@ -57,8 +58,12 @@ optimize g@(C _ _ _) = cond pivot (branch True) (branch False) where
   weights _ _ = id
 optimize g = g
 
-martin p = p(n) /= p(n+1) where
+martin slow p = p(n) /= p(n+1) where
   n = narrow 1 1 + narrow 2 2 + narrow 3 4 + narrow 4 8
+    + if slow then narrow 5 8 else 0
   narrow x y = if p(111111111111111 * x) then y else 0
 
-main = print $ cook $ optimize $ optimize $ raw martin
+main = do
+  args <- getArgs
+  let slow = length args >= 1 && head args == "slow"
+  print $ cook $ optimize $ optimize $ raw $ martin slow
