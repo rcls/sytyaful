@@ -36,11 +36,11 @@ versions.
   performance.  Also the `lambda x=x:` trick used is for creating closures.
   Run-time is about 10 seconds on my desktop.
 
-* **sytyaful.c** C.  About 2/3 the runtime of the Haskell version, and 10 times
+* **sytyaful.c** C.  About half the runtime of the Haskell version, and 10 times
   as much code.  All the lazyness, and all the bindings, pedantically spelled
   out item by item, and then glued together with custom allocaters.  You have to
-  be a masochist to either write or read this code.  Living proof to the
-  fact that just because you can do it, doesn't mean it's a good idea.
+  be a masochist to either write or read this code.  Living proof to the fact
+  that just because you can do it, doesn't mean it's a good idea.
 
 * **tree.rs** Rust.  Transliteration of S.hs, but things specialised by type.
   Everything is boxed using `Rc`.  Only a factor of two slower than the Haskell

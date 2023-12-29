@@ -87,12 +87,9 @@ typedef struct BoundMerge {
     Predicate * y;
 } BoundMerge;
 
-// The measures we construct internally are all associated with a merge.  So we
-// combine the structures instead of having two separate ones.
 typedef struct Measure Measure;
 typedef bool MeasureF(Measure * binding, Arena * a, Predicate * p);
 struct Measure {
-    BoundMerge merge;
     MeasureF * measure;
 };
 
@@ -115,17 +112,23 @@ typedef struct DeferredSearchHigh {
 } DeferredSearchHigh;
 
 typedef struct ResolvedSearchLow {
-    Measure m;
-    uint64_t mid;
-    uint64_t high;
-    Measure * q;
+    struct BoundMerge merge;
+    struct ResolvedLowMeasure {
+        Measure m;
+        uint64_t mid;
+        uint64_t high;
+        Measure * q;
+    } m;
 } ResolvedSearchLow;
 
 typedef struct ResolvedSearchHigh {
-    Measure m;
-    uint64_t mid;
-    Predicate * x;
-    Measure * q;
+    struct BoundMerge merge;
+    struct ResolvedHighMeasure {
+        Measure m;
+        uint64_t mid;
+        Predicate * x;
+        Measure * q;
+    } m;
 } ResolvedSearchHigh;
 
 typedef union SearchLow {
@@ -138,8 +141,8 @@ typedef union SearchHigh {
     ResolvedSearchHigh resolved;
 } SearchHigh;
 
-static bool range(BoundMerge * target,
-                  Arena * a, uint64_t low, uint64_t high, Measure * q, uint64_t n);
+static bool range(BoundMerge * target, Arena * a,
+                  uint64_t low, uint64_t high, Measure * q, uint64_t n);
 
 static bool merge_worker(Predicate * p, uint64_t n)
 {
@@ -162,7 +165,7 @@ static Predicate * merge(
 
 static bool search_high_measure(Measure * me, Arena * a, Predicate * y)
 {
-    ResolvedSearchHigh * s = (ResolvedSearchHigh *) me;
+    struct ResolvedHighMeasure * s = (struct ResolvedHighMeasure *) me;
     BoundMerge m;
     return s->q->measure(s->q, a, merge(&m, s->mid, s->x, y));
 }
@@ -180,14 +183,12 @@ static bool search_high_worker(Predicate * p, uint64_t n)
     Measure * q   = s->q;
 
     ResolvedSearchHigh * r = (ResolvedSearchHigh *) s;
-    r->mid = mid;
-    r->x = x;
-    r->q = q;
-    r->m.measure = search_high_measure;
+    r->m.m.measure = search_high_measure;
+    r->m.mid = mid;
+    r->m.x = x;
+    r->m.q = q;
 
-    return range(&r->m.merge, arena, mid, high, (Measure *) r, n);
-
-    //return p->predicate(p, n);          // Chain to the result.
+    return range(&r->merge, arena, mid, high, (Measure *) &r->m, n);
 }
 
 
@@ -207,7 +208,7 @@ static Predicate * search_high(
 
 static bool search_low_measure(Measure * me, Arena * a, Predicate * x)
 {
-    ResolvedSearchLow * s = (ResolvedSearchLow *) me;
+    struct ResolvedLowMeasure * s = (struct ResolvedLowMeasure *) me;
     BoundMerge m;
     SearchHigh h;
     Predicate * merged = merge(
@@ -228,12 +229,12 @@ static bool search_low_worker(Predicate * p, uint64_t n)
     Measure * q = s->q;
 
     ResolvedSearchLow * r = (ResolvedSearchLow *) p;
-    r->m.measure = search_low_measure;
-    r->mid = mid;
-    r->high = high;
-    r->q = q;
+    r->m.m.measure = search_low_measure;
+    r->m.mid = mid;
+    r->m.high = high;
+    r->m.q = q;
 
-    return range(&r->m.merge, arena, low, mid, (Measure *) r, n);
+    return range(&r->merge, arena, low, mid, (Measure *) &r->m, n);
 }
 
 static bool split(BoundMerge * target, Arena * a,
@@ -646,7 +647,7 @@ static bool martin(Measure * m, Arena * a, Predicate * p)
     return p->predicate(p, n) != p->predicate(p, n+1);
 }
 
-static Measure Martin = { {{NULL}, 0, NULL, NULL}, martin };
+static Measure Martin = {martin};
 
 int main(int argc, char * const argv[])
 {
