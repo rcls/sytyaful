@@ -72,13 +72,10 @@ static void arena_free(Arena * arena)
     arena_init(arena);
 }
 
-typedef struct Predicate Predicate;
-typedef bool PredicateF(Predicate * binding, uint64_t n);
-
-struct Predicate {
-    PredicateF * predicate;
+typedef struct Predicate {
+    bool (*predicate)(struct Predicate * self, uint64_t n);
     // ... actual users follow with more data.
-};
+} Predicate;
 
 typedef struct BoundMerge {
     Predicate b;
@@ -87,11 +84,14 @@ typedef struct BoundMerge {
     Predicate * y;
 } BoundMerge;
 
-typedef struct Measure Measure;
-typedef bool MeasureF(Measure * binding, Arena * a, Predicate * p);
-struct Measure {
-    MeasureF * measure;
-};
+typedef struct Measure {
+    // Passing the Arena to the measure function is unnecessary - we could just
+    // store it whereever one is needed (it makes no difference to the arena we
+    // use).  However, that increases memory usage and slows down the code a
+    // bit.
+    bool (*measure)(struct Measure * self, Arena * a, Predicate * p);
+    // ... actual users follow with more data.
+} Measure;
 
 typedef struct DeferredSearchLow {
     Predicate b;
@@ -183,10 +183,7 @@ static bool search_high_worker(Predicate * p, uint64_t n)
     Measure * q   = s->q;
 
     ResolvedSearchHigh * r = (ResolvedSearchHigh *) s;
-    r->m.m.measure = search_high_measure;
-    r->m.mid = mid;
-    r->m.x = x;
-    r->m.q = q;
+    r->m = (struct ResolvedHighMeasure) {{search_high_measure}, mid, x, q};
 
     return range(&r->merge, arena, mid, high, (Measure *) &r->m, n);
 }
@@ -197,12 +194,7 @@ static Predicate * search_high(
     Predicate * x, uint64_t mid, uint64_t high, Measure * q)
 {
     DeferredSearchHigh * y = &target->deferred;
-    y->b.predicate = search_high_worker;
-    y->arena = a;
-    y->x = x;
-    y->mid = mid;
-    y->high = high;
-    y->q = q;
+    *y = (DeferredSearchHigh) {{search_high_worker}, a, x, mid, high, q};
     return (Predicate *) y;
 }
 
@@ -229,10 +221,7 @@ static bool search_low_worker(Predicate * p, uint64_t n)
     Measure * q = s->q;
 
     ResolvedSearchLow * r = (ResolvedSearchLow *) p;
-    r->m.m.measure = search_low_measure;
-    r->m.mid = mid;
-    r->m.high = high;
-    r->m.q = q;
+    r->m = (struct ResolvedLowMeasure) {{search_low_measure}, mid, high, q};
 
     return range(&r->merge, arena, low, mid, (Measure *) &r->m, n);
 }
@@ -246,14 +235,11 @@ static bool split(BoundMerge * target, Arena * a,
     struct Both { SearchLow low; SearchHigh high; };
     struct Both * both = arena_alloc(a, sizeof(struct Both));
     DeferredSearchLow * x = &both->low.deferred;
-    x->b.predicate = search_low_worker;
-    x->arena = a;
-    x->low = low;
-    x->mid = mid;
-    x->high = high;
-    x->q = q;
+    *x = (DeferredSearchLow) {{search_low_worker}, a, low, mid, high, q};
+
     Predicate * y = search_high(&both->high, a, (Predicate *) x, mid, high, q);
     merge(target, mid, (Predicate *) x, y);
+
     if (n == (uint64_t) -1)
         return false;
     if (n < mid)
@@ -324,6 +310,12 @@ typedef struct Raw {
 static const Raw RawT = { 1, NULL, NULL };
 static const Raw RawF = { 0, NULL, NULL };
 
+static Raw * makeRaw(Arena * a, uint64_t pivot, const Raw * tt, const Raw * ff)
+{
+    Raw * node = arena_alloc(a, sizeof(Raw));
+    *node = (Raw) {pivot, tt, ff};
+    return node;
+}
 
 static bool arbitrary(Predicate * p, uint64_t n)
 {
@@ -378,15 +370,6 @@ static bool special_worker(Predicate * p, uint64_t n)
         return s->inner->predicate(s->inner, n);
 }
 
-static Predicate * special(Special * target, Predicate * p, uint64_t n, bool v)
-{
-    target->b.predicate = special_worker;
-    target->inner = p;
-    target->n = n;
-    target->v = v;
-    return (Predicate *) target;
-}
-
 typedef struct Specialize {
     Measure b;
     Measure * inner;
@@ -397,17 +380,14 @@ typedef struct Specialize {
 static bool specialize_worker(Measure * m, Arena * a, Predicate * p)
 {
     Specialize * s = (Specialize *) m;
-    Special sp;
-    return s->inner->measure(s->inner, a, special(&sp, p, s->n, s->v));
+    Special sp = {{special_worker}, p, s->n, s->v};
+    return s->inner->measure(s->inner, a, &sp.b);
 }
 
 static Measure * specialize(
     Specialize * target, Measure * m, uint64_t n, bool v)
 {
-    target->b.measure = specialize_worker;
-    target->inner = m;
-    target->n = n;
-    target->v = v;
+    *target = (Specialize) {{specialize_worker}, m, n, v};
     return (Measure *) target;
 }
 
@@ -417,9 +397,7 @@ static const Raw * raw(Arena * ar, Measure * q)
     arena_init(&a);
     bool q_arbitrary = q->measure(q, &a, &Arbitrary);
     arena_free(&a);
-    struct NegMeasure negarg;
-    negarg.b.measure = negMeasure;
-    negarg.q = q;
+    struct NegMeasure negarg = {{negMeasure}, q};
 
     BoundMerge different;
     range(&different, &a, 0, 0, q_arbitrary ? (Measure *) &negarg : q, -1);
@@ -434,14 +412,10 @@ static const Raw * raw(Arena * ar, Measure * q)
     uint64_t pivot = limit((Predicate *) &partial);
     arena_free(&a);
 
-    Raw * node = arena_alloc(ar, sizeof(Raw));
-    node->pivot = pivot;
-
     Specialize sp;
-    node->tt = raw(ar, specialize(&sp, q, pivot, true));
-    node->ff = raw(ar, specialize(&sp, q, pivot, false));
-
-    return node;
+    return makeRaw(ar, pivot,
+                   raw(ar, specialize(&sp, q, pivot, true)),
+                   raw(ar, specialize(&sp, q, pivot, false)));
 }
 
 static bool raw_eq(const Raw * l, const Raw * r)
@@ -490,11 +464,8 @@ static const Raw * dup(Arena * a, const Raw * r)
 {
     if (r->tt == NULL)
         return r;
-    Raw * node = arena_alloc(a, sizeof(Raw));
-    node->pivot = r->pivot;
-    node->tt = dup(a, r->tt);
-    node->ff = dup(a, r->ff);
-    return node;
+
+    return makeRaw(a, r->pivot, r->tt, r->ff);
 }
 
 // Always copy....
@@ -508,11 +479,7 @@ static const Raw * slice(Arena * a, const Raw * r, uint64_t pivot, bool v)
     if (raw_eq_slice(tt, r->ff, pivot, v))
         return tt;
 
-    Raw * node = arena_alloc(a, sizeof(Raw));
-    node->pivot = r->pivot;
-    node->tt = tt;
-    node->ff = slice(a, r->ff, pivot, v);
-    return node;
+    return makeRaw(a, r->pivot, tt, slice(a, r->ff, pivot, v));
 }
 
 #define HT_PRIME 31
@@ -540,9 +507,7 @@ static void weights(Arena * a, HashTable * ht, double w, const Raw * r)
         }
     }
     *b = arena_alloc(a, sizeof(HTNode));
-    (*b)->next = NULL;
-    (*b)->n = r->pivot;
-    (*b)->weight = w;
+    **b = (HTNode) {NULL, r->pivot, w};
 }
 
 static uint64_t max_weight(const Raw * r)
