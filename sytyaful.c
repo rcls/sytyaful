@@ -13,6 +13,11 @@
 #define MAX_ALIGN (_Alignof(max_align_t))
 #define ARENA_BYTES 3968
 
+#define ARENA_STATS 0
+
+static int arena_depth;
+static int arena_max;
+
 typedef struct Arena {
     struct Arena * chain;
     size_t used;
@@ -20,16 +25,15 @@ typedef struct Arena {
     _Alignas(max_align_t) uint8_t storage[ARENA_BYTES];
 } Arena;
 
-_Static_assert(sizeof(Arena) <= ARENA_BYTES + MAX_ALIGN + 32, "");
-
-static struct Arena * free_arenas;
-
-#define ARENA_BASE (offsetof(Arena, storage))
+static Arena * free_arenas;
 
 static void arena_init(Arena * arena)
 {
     arena->chain = arena;
     arena->used = 0;
+    ++arena_depth;
+    if (arena_depth > arena_max)
+        arena_max = arena_depth;
 }
 
 static void * arena_alloc(Arena * arena, size_t size)
@@ -43,6 +47,7 @@ static void * arena_alloc(Arena * arena, size_t size)
         current->used += size;
         return result;
     }
+
     assert(size <= ARENA_BYTES);
     Arena * a;
     if (free_arenas) {
@@ -50,7 +55,7 @@ static void * arena_alloc(Arena * arena, size_t size)
         free_arenas = a->chain;
     }
     else {
-        a = malloc(sizeof(Arena));
+        a = malloc(offsetof(Arena, storage) + ARENA_BYTES);
         assert(a);
     }
     a->chain = current;
@@ -61,15 +66,29 @@ static void * arena_alloc(Arena * arena, size_t size)
 
 static void arena_free(Arena * arena)
 {
+    uint64_t total = arena->used;
+    uint64_t blocks = 1;
     Arena * tail = arena->chain;
     if (tail != arena) {
-        while (tail->chain != arena)
+        if (ARENA_STATS) {
+            total += tail->used;
+            blocks += 1;
+        }
+        while (tail->chain != arena) {
             tail = tail->chain;
-
+            if (ARENA_STATS) {
+                total += tail->used;
+                blocks += 1;
+            }
+        }
         tail->chain = free_arenas;
         free_arenas = arena->chain;
     }
-    arena_init(arena);
+    --arena_depth;
+    if (ARENA_STATS) {
+        printf("Used: %lu\n", total);
+        printf("Blocks: %lu\n", blocks);
+    }
 }
 
 typedef struct Predicate {
@@ -397,6 +416,7 @@ static const Raw * raw(Arena * ar, Measure * q)
     arena_init(&a);
     bool q_arbitrary = q->measure(q, &a, &Arbitrary);
     arena_free(&a);
+    arena_init(&a);
     struct NegMeasure negarg = {{negMeasure}, q};
 
     BoundMerge different;
@@ -429,7 +449,7 @@ static bool raw_eq(const Raw * l, const Raw * r)
 
 static bool raw_eq_neg(const Raw * l, const Raw * r)
 {
-    if (l->tt == NULL && r->tt == NULL && l->pivot != r->pivot)
+    if (l->tt == NULL && r->tt == NULL && l != r)
         return true;
     if (l->tt == NULL || r->tt == NULL)
         return false;
@@ -543,6 +563,7 @@ static const Raw * optimize(Arena * a, const Raw * r)
     arena_init(&temp);
     node->tt = optimize(a, slice(&temp, r, pivot, true));
     arena_free(&temp);
+    arena_init(&temp);
     node->ff = optimize(a, slice(&temp, r, pivot, false));
     arena_free(&temp);
     return node;
@@ -626,11 +647,14 @@ int main(int argc, char * const argv[])
     arena_init(&b);
     r = optimize(&b, r);
     arena_free(&a);
+    arena_init(&a);
     r = optimize(&a, r);
     arena_free(&b);
     cook(r);
     printf("\n");
     arena_free(&a);
+    printf("Max depth %u\n", arena_max);
+    assert(arena_depth == 0);
 
     // Clear out the arena LRU.
     while (free_arenas) {

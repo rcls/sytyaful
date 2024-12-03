@@ -23,13 +23,13 @@ limit f = aft 0 where
 
 data Raw a = K !a | C !Word !(Raw a) !(Raw a) deriving (Eq, Functor, Show)
 
-raw p = if pArbitrary == p different then K pArbitrary
+raw q = if qArbitrary == q different then K qArbitrary
         else C pivot (slice True) (slice False) where
   arbitrary x = mod x 2 /= 0
-  pArbitrary  = p arbitrary
-  different   = after 0 $ \f -> p f /= pArbitrary
-  pivot       = limit $ \n -> p (merge n arbitrary different) /= pArbitrary
-  slice v     = raw   $ \f -> p $ \n -> if n == pivot then v else f n
+  qArbitrary  = q arbitrary
+  different   = after 0 $ \f -> q f /= qArbitrary
+  pivot       = limit $ \n -> q (merge n arbitrary different) /= qArbitrary
+  slice v     = raw   $ \f -> q $ \n -> if n == pivot then v else f n
 
 data Graph = Graph :|: Graph | Graph :&: Graph | Graph :^: Graph
   | IF Word Graph Graph | T | F | AT Word | NAT Word deriving Show
@@ -42,12 +42,11 @@ cook(C n r (K x)) = if x then NAT n :|: cook r else  AT n :&: cook r
 cook(C n r s) | r==(not<$>s) = AT n :^: cook s
 cook(C n r s) = IF n (cook r) (cook s)
 
--- golden = (sqrt(5) - 1) * 0.5 + 1e-10
 golden = 0.61803398875
 
 cond n x y = if x == y then x else C n x y
 
-optimize g@(C _ _ _) = cond pivot (branch True) (branch False) where
+optimize g@(C _ (C _ _ _) (C _ _ _)) = cond pivot (branch True) (branch False) where
   branch b = optimize $ slice g where
     slice (C x l r) | x==pivot = if b then l else r
     slice (C x l r) = cond x (slice l) (slice r)
@@ -65,5 +64,5 @@ martin slow p = p(n) /= p(n+1) where
 
 main = do
   args <- getArgs
-  let slow = length args >= 1 && head args == "slow"
+  let slow = case args of { "slow":_ -> True ; _ -> False }
   print $ cook $ optimize $ optimize $ raw $ martin slow

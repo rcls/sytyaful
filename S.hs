@@ -8,7 +8,7 @@ infixr 0 ?
 newtype S a = S{(?) :: (a -> Bool) -> a} deriving Functor
 
 cc :: (b -> Bool) -> S a -> (a -> b) -> b
-cc q xx f = f (xx ? q . f)
+cc q xx f = f <$> xx ? q
 
 instance Applicative S where
   pure = S . const

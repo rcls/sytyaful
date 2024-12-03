@@ -3,9 +3,12 @@
 *.cmx
 R
 S
+msearch
+mtree
 osearch
 otree
 search
+sytyaful
 tree
 
 node_modules
